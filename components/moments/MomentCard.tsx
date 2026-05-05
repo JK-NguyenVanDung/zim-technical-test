@@ -3,6 +3,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Easing,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -10,9 +11,9 @@ import {
   type GestureResponderEvent,
 } from "react-native";
 
-const TILT_MAX_DEG = 16;
+const TILT_MAX_DEG = Platform.OS === "web" ? 16 : 4;
 const PARALLAX_IMAGE_PX = 22;
-const PARALLAX_CAPTION_PX = 14;
+const PARALLAX_CAPTION_PX = 10;
 
 import type { MomentPalette } from "@/components/moments/MomentPalette";
 import type { ZimMoment } from "@/types/moment";
@@ -59,14 +60,12 @@ function MomentCardComponent({
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tiltReadyRef = useRef(false);
   const [pressed, setPressed] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   // Fraction of card width treated as an edge zone, scroll wins here
   const EDGE_FRACTION = 0.2;
 
-  const tiltHandlers = useMemo(() => {
-    if (reducedMotion || !isPreviewed) {
-      return null;
-    }
+  const touchHandlers = useMemo(() => {
     const updateTilt = (locationX: number, locationY: number) => {
       const { width, height } = cardSizeRef.current;
       if (!width || !height) return;
@@ -101,7 +100,9 @@ function MomentCardComponent({
     };
     const releaseWithCancel = () => {
       cancelHold();
-      release();
+      if (isPreviewed && !reducedMotion) {
+        release();
+      }
     };
     return {
       onTouchStart: (e: GestureResponderEvent) => {
@@ -115,6 +116,8 @@ function MomentCardComponent({
         draggedRef.current = false;
         tiltReadyRef.current = false;
         edgeGestureRef.current = inEdgeZone;
+
+        if (reducedMotion || !isPreviewed) return;
 
         // Snapshot coords NOW — the event object is pooled and nulled
         // by the time setTimeout fires 180ms later.
@@ -138,20 +141,22 @@ function MomentCardComponent({
             // Significant movement before tilt is ready → cancel hold timer
             if (!tiltReadyRef.current) {
               cancelHold();
-            }
-            // Predominantly horizontal drag → yield to carousel.
-            // Edge zone uses a lower ratio so edge swipes still feel natural.
-            const threshold = edgeGestureRef.current ? 1.0 : 1.2;
-            if (Math.abs(dx) > Math.abs(dy) * threshold) {
-              releaseWithCancel();
-              edgeGestureRef.current = true;
-              return;
+              // Predominantly horizontal drag → yield to carousel.
+              // Edge zone uses a lower ratio so edge swipes still feel natural.
+              const threshold = edgeGestureRef.current ? 1.0 : 1.2;
+              if (Math.abs(dx) > Math.abs(dy) * threshold) {
+                releaseWithCancel();
+                edgeGestureRef.current = true;
+                return;
+              }
             }
           }
         }
+        
+        if (reducedMotion || !isPreviewed) return;
+
         // Only update tilt visuals once the hold threshold has been passed
         if (!tiltReadyRef.current) return;
-        if (edgeGestureRef.current && draggedRef.current) return;
         updateTilt(e.nativeEvent.locationX, e.nativeEvent.locationY);
       },
       onTouchEnd: releaseWithCancel,
@@ -167,6 +172,7 @@ function MomentCardComponent({
         holdTimerRef.current = null;
       }
       tiltReadyRef.current = false;
+      draggedRef.current = false;
       tiltX.stopAnimation();
       tiltY.stopAnimation();
       tiltX.setValue(0);
@@ -191,21 +197,23 @@ function MomentCardComponent({
       return;
     }
 
-    Animated.loop(
-      Animated.timing(ringRotate, {
-        duration: 1100,
-        easing: Easing.linear,
-        toValue: 1,
-        useNativeDriver: true,
-      }),
-    ).start();
+    if (!reducedMotion) {
+      Animated.loop(
+        Animated.timing(ringRotate, {
+          duration: 1100,
+          easing: Easing.linear,
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+      ).start();
+    }
     Animated.timing(ringFill, {
-      duration: 2000,
+      duration: reducedMotion ? 0 : 2000,
       easing: Easing.out(Easing.quad),
       toValue: 1,
       useNativeDriver: true,
     }).start();
-  }, [isPending, ringFill, ringRotate]);
+  }, [isPending, reducedMotion, ringFill, ringRotate]);
 
   const scrollStyle = useMemo(() => {
     if (reducedMotion) {
@@ -353,7 +361,7 @@ function MomentCardComponent({
     <Animated.View style={[styles.outer, scrollStyle, { width: itemWidth }]}>
       <Animated.View style={hoverStyle}>
         <Pressable
-          {...(tiltHandlers ?? {})}
+          {...touchHandlers}
           accessibilityHint={
             isPreviewed
               ? "Chạm lần nữa để mở khoảnh khắc toàn màn hình"
@@ -361,8 +369,14 @@ function MomentCardComponent({
           }
           accessibilityLabel={`Khoảnh khắc video ${moment.title}, ${moment.location}`}
           accessibilityRole="button"
-          onBlur={() => setPressed(false)}
-          onFocus={() => onPreview(moment.id)}
+          onBlur={() => {
+            setPressed(false);
+            setIsFocused(false);
+          }}
+          onFocus={() => {
+            setIsFocused(true);
+            onPreview(moment.id);
+          }}
           onHoverIn={() => onPreview(moment.id)}
           onLayout={(e) => {
             cardSizeRef.current = {
@@ -383,10 +397,19 @@ function MomentCardComponent({
             styles.card,
             {
               backgroundColor: palette.surface,
-              borderColor: isPreviewed
-                ? palette.border
-                : "rgba(255, 255, 255, 0.18)",
+              borderColor: isFocused
+                ? palette.text
+                : isPreviewed
+                  ? palette.border
+                  : "rgba(255, 255, 255, 0.18)",
             },
+            isFocused &&
+              Platform.OS === "web" &&
+              ({
+                outlineColor: palette.text,
+                outlineStyle: "solid",
+                outlineWidth: 3,
+              } as any),
           ]}
         >
           <View style={styles.mediaFrame}>
@@ -513,7 +536,7 @@ const styles = StyleSheet.create({
     width: 96,
   },
   captionLayer: {
-    bottom: 14,
+    bottom: 20,
     gap: 5,
     left: 12,
     position: "absolute",
@@ -524,11 +547,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "900",
     lineHeight: 17,
+    textShadowColor: "rgba(0, 0, 0, 0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   cardCaption: {
     color: "#FFFFFF",
     fontSize: 11,
     fontWeight: "700",
     lineHeight: 15,
+    textShadowColor: "rgba(0, 0, 0, 0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 });

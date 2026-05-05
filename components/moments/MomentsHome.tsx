@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -120,13 +121,14 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
   // ─── Responsive card sizing ────────────────────────────────────────────
   // Reserve space for: safe areas + top padding + heading block + gap + bottom buffer.
   // heading block ≈ 120px portrait / 80px landscape (title + description + gap).
-  const headingReserve = isLandscape ? 80 : 120;
+  const headingReserve = isLandscape ? 100 : 130;
   const bottomBuffer = Math.max(insets.bottom + 32, height * 0.09);
   const carouselPaddingTop = 28;
+  const paddingBottom = Math.max(insets.bottom, 18);
   const availableCardH =
     height -
     insets.top -
-    insets.bottom -
+    paddingBottom -
     (isLandscape ? 18 : 34) - // content paddingTop
     headingReserve -
     18 - // content gap
@@ -136,8 +138,8 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
   // Cap width from both the horizontal 58% rule AND the vertical height budget.
   const maxWidthFromHeight = Math.max(140, availableCardH * (9 / 16));
   const itemWidth = Math.min(
-    isLandscape ? 260 : 290,
-    Math.max(172, width * 0.58),
+    isLandscape ? 240 : 290,
+    Math.max(160, width * 0.58),
     maxWidthFromHeight,
   );
 
@@ -244,8 +246,18 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
 
   return (
     <View style={[styles.screen, { backgroundColor: palette.background }]}>
-      <View style={styles.blueGlow} />
-      <View style={styles.redGlow} />
+      {/* Blue blob */}
+      <LinearGradient
+        colors={["rgba(45, 60, 140, 0.5)", "rgba(45, 60, 140, 0.1)", "transparent"]}
+        locations={[0, 0.5, 1]}
+        style={styles.blueGlow}
+      />
+      {/* Red blob */}
+      <LinearGradient
+        colors={["rgba(185, 28, 46, 0.5)", "rgba(185, 28, 46, 0.1)", "transparent"]}
+        locations={[0, 0.5, 1]}
+        style={styles.redGlow}
+      />
       <View
         style={[
           styles.content,
@@ -272,6 +284,7 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
             styles.carousel,
             {
               paddingHorizontal: sidePadding,
+              paddingBottom: bottomBuffer,
             },
           ]}
           data={moments}
@@ -328,6 +341,8 @@ const styles = StyleSheet.create({
   },
   list: {
     flexGrow: 0,
+    marginTop: "auto",
+    marginBottom: "auto",
   },
   carousel: {
     alignItems: "flex-start",
@@ -335,25 +350,19 @@ const styles = StyleSheet.create({
     paddingTop: 28, // matches carouselPaddingTop constant above
   },
   blueGlow: {
-    backgroundColor: "rgba(45, 60, 140, 0.5)",
-    borderRadius: 999,
+    borderRadius: 9999,
     height: 360,
-    left: "18%",
-    opacity: 0.55,
+    left: "10%",
     position: "absolute",
-    top: -70,
-    transform: [{ scaleX: 0.45 }],
+    top: "-10%",
     width: 360,
   },
   redGlow: {
-    backgroundColor: "rgba(185, 28, 46, 0.36)",
-    borderRadius: 999,
-    bottom: 80,
+    borderRadius: 9999,
+    bottom: "5%",
     height: 300,
-    opacity: 0.7,
     position: "absolute",
-    right: "10%",
-    transform: [{ scaleX: 0.55 }],
+    right: "0%",
     width: 300,
   },
 });

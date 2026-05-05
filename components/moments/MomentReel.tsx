@@ -304,7 +304,7 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
         <VideoProgressBar
           key={activeMoment?.id}
           player={activePlayer}
-          top={headerHeight + 6}
+          top={headerHeight + 24}
         />
       ) : null}
     </View>
@@ -351,6 +351,7 @@ const MomentReelSlide = memo(function MomentReelSlide({
       ) : null}
 
       <ExpandableCaption
+        title={moment.title}
         caption={moment.caption}
         expanded={captionExpanded}
         location={moment.location}
@@ -362,12 +363,14 @@ const MomentReelSlide = memo(function MomentReelSlide({
 });
 
 function ExpandableCaption({
+  title,
   caption,
   expanded,
   location,
   onToggle,
   palette,
 }: {
+  title: string;
   caption: string;
   expanded: boolean;
   location: string;
@@ -384,6 +387,12 @@ function ExpandableCaption({
         style={styles.captionInner}>
         <Text
           selectable
+          style={[styles.slideTitle, { color: palette.overlayText }]}
+          numberOfLines={2}>
+          {title}
+        </Text>
+        <Text
+          selectable
           style={[styles.slideLocation, { color: palette.overlayText }]}
           numberOfLines={1}>
           {location}
@@ -397,14 +406,7 @@ function ExpandableCaption({
               {caption}
             </Text>
           </ScrollView>
-        ) : (
-          <Text
-            numberOfLines={2}
-            selectable
-            style={[styles.slideCaption, { color: palette.overlayText }]}>
-            {caption}
-          </Text>
-        )}
+        ) : null}
       </Pressable>
     </View>
   );
@@ -571,22 +573,30 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   slideTitle: {
-    fontSize: 22,
-    fontWeight: '900',
+    fontSize: 16,
+    fontWeight: '800',
     letterSpacing: 0,
-    lineHeight: 28,
+    lineHeight: 22,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   slideLocation: {
     fontSize: 15,
     fontWeight: '800',
     lineHeight: 21,
     opacity: 0.95,
-    marginBottom: 6,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   slideCaption: {
     fontSize: 14,
     lineHeight: 20,
     opacity: 0.94,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   captionWrap: {
     bottom: 0,

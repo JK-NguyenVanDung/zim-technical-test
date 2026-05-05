@@ -540,8 +540,13 @@ function MomentVideo({
   }, [isActive, player, shouldPlay]);
 
   useEffect(() => {
-    if (isActive) player.muted = isMuted;
-  }, [isActive, isMuted, player]);
+    if (isActive) {
+      player.muted = isMuted;
+      if (shouldPlay && player.status === 'readyToPlay') {
+        player.play();
+      }
+    }
+  }, [isActive, isMuted, player, shouldPlay]);
 
   const wasActiveRef = useRef(false);
   useEffect(() => {
@@ -574,11 +579,11 @@ function MomentVideo({
   return (
     <View style={styles.media}>
       <VideoView
-        allowsFullscreen={false}
         allowsPictureInPicture={false}
         startsPictureInPictureAutomatically={false}
         contentFit="cover"
         nativeControls={false}
+        fullscreenOptions={{ enable: false }}
         onFirstFrameRender={playIfReady}
         player={player}
         style={styles.media}
@@ -628,7 +633,10 @@ function IconButton({
       accessibilityRole="button"
       onBlur={() => setIsFocused(false)}
       onFocus={() => setIsFocused(true)}
-      onPress={onPress}
+      onPress={(e) => {
+        if (e?.stopPropagation) e.stopPropagation();
+        onPress();
+      }}
       style={[
         styles.iconButton,
         {

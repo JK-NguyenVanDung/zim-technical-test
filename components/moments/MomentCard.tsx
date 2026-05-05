@@ -457,7 +457,7 @@ function MomentCardComponent({
                 <Text numberOfLines={2} selectable style={styles.cardTitle}>
                   {moment.location}
                 </Text>
-                <Text numberOfLines={2} selectable style={styles.cardCaption}>
+                <Text numberOfLines={3} selectable style={styles.cardCaption}>
                   {moment.caption}
                 </Text>
               </Animated.View>
@@ -543,18 +543,18 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: "#FFFFFF",
-    fontSize: 13,
+    fontSize: Platform.select({ android: 12, ios: 13, default: 13 }),
     fontWeight: "900",
-    lineHeight: 17,
+    lineHeight: Platform.select({ android: 16, ios: 17, default: 17 }),
     textShadowColor: "rgba(0, 0, 0, 0.8)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
   cardCaption: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: Platform.select({ android: 10, ios: 11, default: 11 }),
     fontWeight: "700",
-    lineHeight: 15,
+    lineHeight: Platform.select({ android: 14, ios: 15, default: 15 }),
     textShadowColor: "rgba(0, 0, 0, 0.8)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,

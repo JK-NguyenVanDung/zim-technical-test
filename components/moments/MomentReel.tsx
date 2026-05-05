@@ -158,8 +158,11 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
     [overlayOpacity, overlayScale, reducedMotion]
   );
 
+  const captionExpandedRef = useRef(captionExpanded);
+  captionExpandedRef.current = captionExpanded;
+
   const togglePlayback = useCallback(() => {
-    if (captionExpanded) {
+    if (captionExpandedRef.current) {
       setCaptionExpanded(false);
       setShouldPlay(true);
       flashOverlay(true);
@@ -170,7 +173,7 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
       flashOverlay(next);
       return next;
     });
-  }, [captionExpanded, flashOverlay]);
+  }, [flashOverlay]);
 
   useEffect(() => {
     flashOverlay(true);
@@ -190,12 +193,12 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
           captionExpanded={active && captionExpanded}
           height={height}
           isActive={active}
-          isMuted={isMuted}
+          isMuted={active ? isMuted : true}
           moment={item}
           onTogglePlayback={togglePlayback}
           onToggleCaption={toggleCaptionExpanded}
           palette={palette}
-          shouldPlay={shouldPlay}
+          shouldPlay={active && shouldPlay}
         />
       );
     },
@@ -258,21 +261,24 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
       <FlatList
         data={moments}
         decelerationRate="fast"
+        disableIntervalMomentum
         getItemLayout={getItemLayout}
-        initialNumToRender={2}
+        initialNumToRender={1}
         initialScrollIndex={initialIndex}
         keyExtractor={keyExtractor}
-        maxToRenderPerBatch={2}
+        maxToRenderPerBatch={1}
         onScrollToIndexFailed={onScrollToIndexFailed}
         onViewableItemsChanged={onViewableItemsChanged}
         pagingEnabled
         ref={listRef}
-        removeClippedSubviews
+        removeClippedSubviews={false}
         renderItem={renderSlide}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         snapToAlignment="start"
         snapToInterval={height}
         style={styles.reel}
+        updateCellsBatchingPeriod={50}
         viewabilityConfig={viewabilityConfig}
         windowSize={3}
       />
@@ -435,13 +441,11 @@ function ExpandableCaption({
           webFocusStyle,
         ]}>
         <Text
-          selectable
           style={[styles.slideTitle, { color: palette.overlayText }]}
           numberOfLines={2}>
           {title}
         </Text>
         <Text
-          selectable
           style={[styles.slideLocation, { color: palette.overlayText }]}
           numberOfLines={1}>
           {location}

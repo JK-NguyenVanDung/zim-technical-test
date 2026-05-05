@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from "expo-router";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   FlatList,
@@ -10,14 +10,17 @@ import {
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { MomentCard } from '@/components/moments/MomentCard';
-import { getMomentPalette } from '@/components/moments/MomentPalette';
-import { getCachedVideoPlayer, pauseCachedVideoPlayer } from '@/components/moments/VideoCache';
-import { useReducedMotionPreference } from '@/hooks/UseReducedMotionPreference';
-import type { ZimMoment, ZimMomentsSection } from '@/types/moment';
+import { MomentCard } from "@/components/moments/MomentCard";
+import { getMomentPalette } from "@/components/moments/MomentPalette";
+import {
+  getCachedVideoPlayer,
+  pauseCachedVideoPlayer,
+} from "@/components/moments/VideoCache";
+import { useReducedMotionPreference } from "@/hooks/UseReducedMotionPreference";
+import type { ZimMoment, ZimMomentsSection } from "@/types/moment";
 
 type MomentsHomeProps = {
   moments: ZimMoment[];
@@ -68,9 +71,9 @@ const RenderMoment = memo(
       scrollX={scrollX}
       snapInterval={snapInterval}
     />
-  )
+  ),
 );
-RenderMoment.displayName = 'RenderMoment';
+RenderMoment.displayName = "RenderMoment";
 
 export function MomentsHome({ moments, section }: MomentsHomeProps) {
   const router = useRouter();
@@ -96,7 +99,7 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
   useEffect(() => () => cancelPending(), [cancelPending]);
   const previewedMoment = useMemo(
     () => moments.find((moment) => moment.id === previewedId),
-    [moments, previewedId]
+    [moments, previewedId],
   );
 
   useEffect(() => {
@@ -109,7 +112,10 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
   }, [previewedMoment?.videoUrl]);
 
   const isLandscape = width > height;
-  const itemWidth = Math.min(isLandscape ? 260 : 290, Math.max(172, width * 0.58));
+  const itemWidth = Math.min(
+    isLandscape ? 260 : 290,
+    Math.max(172, width * 0.58),
+  );
   const snapInterval = itemWidth + 22;
   const sidePadding = Math.max(18, (width - itemWidth) / 2);
 
@@ -117,7 +123,7 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
     (id: string) => {
       if (previewedId === id) {
         cancelPending();
-        router.push({ pathname: '/moment/[id]', params: { id } });
+        router.push({ pathname: "/moment/[id]", params: { id } });
         return;
       }
 
@@ -141,10 +147,10 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
       pendingTimerRef.current = setTimeout(() => {
         pendingTimerRef.current = null;
         setPendingId(undefined);
-        router.push({ pathname: '/moment/[id]', params: { id } });
+        router.push({ pathname: "/moment/[id]", params: { id } });
       }, 2000);
     },
-    [cancelPending, moments, previewedId, reducedMotion, router, snapInterval]
+    [cancelPending, moments, previewedId, reducedMotion, router, snapInterval],
   );
 
   const renderMoment = useCallback(
@@ -163,7 +169,16 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
         snapInterval={snapInterval}
       />
     ),
-    [itemWidth, openMoment, palette, pendingId, previewedId, reducedMotion, scrollX, snapInterval]
+    [
+      itemWidth,
+      openMoment,
+      palette,
+      pendingId,
+      previewedId,
+      reducedMotion,
+      scrollX,
+      snapInterval,
+    ],
   );
 
   const keyExtractor = useCallback((moment: ZimMoment) => moment.id, []);
@@ -173,15 +188,21 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
       return undefined;
     }
 
-    return Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
-      useNativeDriver: true,
-    });
+    return Animated.event(
+      [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+      {
+        useNativeDriver: true,
+      },
+    );
   }, [reducedMotion, scrollX]);
 
   const onMomentumScrollEnd = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const nextIndex = Math.round(event.nativeEvent.contentOffset.x / snapInterval);
-      const nextMoment = moments[Math.max(0, Math.min(nextIndex, moments.length - 1))];
+      const nextIndex = Math.round(
+        event.nativeEvent.contentOffset.x / snapInterval,
+      );
+      const nextMoment =
+        moments[Math.max(0, Math.min(nextIndex, moments.length - 1))];
 
       if (nextMoment) {
         setPreviewedId(nextMoment.id);
@@ -190,7 +211,7 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
         }
       }
     },
-    [cancelPending, moments, pendingId, snapInterval]
+    [cancelPending, moments, pendingId, snapInterval],
   );
 
   return (
@@ -204,12 +225,16 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
             paddingBottom: Math.max(insets.bottom, 18),
             paddingTop: insets.top + (isLandscape ? 18 : 34),
           },
-        ]}>
+        ]}
+      >
         <View style={styles.heading}>
           <Text selectable style={[styles.title, { color: palette.text }]}>
             {section.title}
           </Text>
-          <Text selectable style={[styles.description, { color: palette.mutedText }]}>
+          <Text
+            selectable
+            style={[styles.description, { color: palette.mutedText }]}
+          >
             {section.description}
           </Text>
         </View>
@@ -247,57 +272,57 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   content: {
     flex: 1,
     gap: 18,
   },
   heading: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: 12,
     paddingHorizontal: 24,
   },
   title: {
     fontSize: 24,
-    fontWeight: '900',
+    fontWeight: "900",
     letterSpacing: 0,
     lineHeight: 30,
-    textAlign: 'center',
+    textAlign: "center",
   },
   description: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
     lineHeight: 19,
     maxWidth: 620,
-    textAlign: 'center',
+    textAlign: "center",
   },
   list: {
     flex: 1,
   },
   carousel: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: 22,
   },
   blueGlow: {
-    backgroundColor: 'rgba(45, 60, 140, 0.5)',
+    backgroundColor: "rgba(45, 60, 140, 0.5)",
     borderRadius: 999,
     height: 360,
-    left: '18%',
+    left: "18%",
     opacity: 0.55,
-    position: 'absolute',
+    position: "absolute",
     top: -70,
     transform: [{ scaleX: 0.45 }],
     width: 360,
   },
   redGlow: {
-    backgroundColor: 'rgba(185, 28, 46, 0.36)',
+    backgroundColor: "rgba(185, 28, 46, 0.36)",
     borderRadius: 999,
     bottom: 80,
     height: 300,
     opacity: 0.7,
-    position: 'absolute',
-    right: '10%',
+    position: "absolute",
+    right: "10%",
     transform: [{ scaleX: 0.55 }],
     width: 300,
   },

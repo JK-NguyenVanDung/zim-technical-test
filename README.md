@@ -1,50 +1,71 @@
-# Welcome to your Expo app 👋
+# ZIM Moments Expo Go Demo
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Expo technical-test project for the ZIM homepage section `6650 khoảnh khắc đáng nhớ`.
 
-## Get started
+Current state: full Expo Go demo with a stack-only Vietnamese home screen, horizontal video discovery, native Animated hover/move effects, and a fullscreen reel modal.
 
-1. Install dependencies
+## Stack
 
-   ```bash
-   npm install
-   ```
+- Expo SDK 54
+- React Native 0.81.5
+- React 19.1.0
+- Expo Router
+- Expo Video
+- Expo Screen Orientation
+- TypeScript strict mode
+- Expo Go target
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Setup
 
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Run
 
-## Learn more
+```bash
+npm run start
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+Scan the QR code with Expo Go.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Build
 
-## Join the community
+Expo Go is the primary demo path. For an APK handoff, log in to EAS and run:
 
-Join our community of developers creating universal apps.
+```bash
+npx eas build -p android --profile preview
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+The `preview` profile outputs an internal Android APK.
+
+## Lint
+
+```bash
+npm run lint
+npx tsc --noEmit
+```
+
+## What Is Implemented
+
+- `types/moment.ts`: strict shared data contract for ZIM moments.
+- `data/ZimMoments.ts`: curated static data crawled from `zim.vn`.
+- `components/moments/`: home section, carousel card, fullscreen reel, and theme palette.
+- `app/index.tsx`: ZIM moments home route.
+- `app/moment/[id].tsx`: fullscreen modal reel route.
+- `eas.json`: preview APK build profile for EAS.
+- `tracking.md`: process notes for interview explanation and verification.
+
+## Product Direction
+
+The app recreates the ZIM homepage “Memorable Moments” section in a mobile Expo environment. It keeps the dark section, centered Vietnamese heading, horizontal story cards, video play affordance, and fullscreen reel behavior.
+
+The data comes from the ZIM homepage stories GraphQL call used by the web section. Items include `thumbnailUrl` and playable `videoUrl` values from `social-media.zim.vn`, with `expo-video` handling fullscreen playback.
+
+## Interview Notes
+
+- Data is static by design so the demo works during interview without depending on ZIM API availability.
+- Motion uses React Native `Animated` with native driver, transform, and opacity only.
+- First tap/focus/hover previews the card; second tap opens the reel.
+- Reduced-motion mode disables the stronger card movement.
+- The app stays Expo Go only; no custom native build or development client is required.

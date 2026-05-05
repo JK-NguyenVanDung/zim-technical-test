@@ -22,7 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getMomentPalette } from '@/components/moments/MomentPalette';
 import type { MomentPalette } from '@/components/moments/MomentPalette';
-import { getCachedVideoPlayer } from '@/components/moments/VideoCache';
+import { getCachedVideoPlayer, resetCachedVideoPlayer } from '@/components/moments/VideoCache';
 import { useReducedMotionPreference } from '@/hooks/UseReducedMotionPreference';
 import type { ZimMoment } from '@/types/moment';
 
@@ -66,6 +66,14 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
     () => (activeMoment?.videoUrl ? getCachedVideoPlayer(activeMoment.videoUrl) : null),
     [activeMoment?.videoUrl]
   );
+
+  // Always start the video from the beginning when the reel opens or the
+  // active slide changes, in case the player was pre-warmed from the carousel.
+  useEffect(() => {
+    if (activeMoment?.videoUrl) {
+      resetCachedVideoPlayer(activeMoment.videoUrl);
+    }
+  }, [activeMoment?.videoUrl]);
 
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 70 }).current;
   const onViewableItemsChanged = useRef(
@@ -470,19 +478,6 @@ function MomentVideo({
 }) {
   const player = useMemo(() => getCachedVideoPlayer(videoUrl), [videoUrl]);
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
-  const wasActiveRef = useRef(false);
-
-  // Reset to beginning each time this slide becomes the active one so the
-  // cached player (which may be mid-playback from carousel preview warming)
-  // always starts fresh for the viewer.
-  useEffect(() => {
-    if (isActive && !wasActiveRef.current) {
-      try {
-        player.currentTime = 0;
-      } catch {}
-    }
-    wasActiveRef.current = isActive;
-  }, [isActive, player]);
 
   useEffect(() => {
     player.muted = isMuted;

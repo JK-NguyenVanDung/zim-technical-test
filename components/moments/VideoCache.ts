@@ -19,7 +19,8 @@ export function getCachedVideoPlayer(uri: string): VideoPlayer {
     preferredForwardBufferDuration: 6,
     minBufferForPlayback: 1,
   };
-  player.play();
+  // Do NOT auto-play here — let each consumer drive playback so the
+  // currentTime never advances before the reel opens.
 
   cache.set(uri, player);
 
@@ -42,5 +43,16 @@ export function pauseCachedVideoPlayer(uri: string) {
   const player = cache.get(uri);
   try {
     player?.pause();
+  } catch {}
+}
+
+/**
+ * Seek a cached player back to the start so that the next viewer always
+ * begins at 0:00, regardless of how far playback advanced during pre-warming.
+ */
+export function resetCachedVideoPlayer(uri: string) {
+  const player = cache.get(uri);
+  try {
+    if (player) player.currentTime = 0;
   } catch {}
 }

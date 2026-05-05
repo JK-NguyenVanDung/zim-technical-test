@@ -27,7 +27,7 @@ import { getMomentPalette } from '@/components/moments/MomentPalette';
 import type { MomentPalette } from '@/components/moments/MomentPalette';
 import {
   getCachedVideoPlayer,
-  silenceCachedVideoPlayers,
+  pauseCachedVideoPlayers,
 } from '@/components/moments/VideoCache';
 import { useReducedMotionPreference } from '@/hooks/UseReducedMotionPreference';
 import type { ZimMoment } from '@/types/moment';
@@ -66,7 +66,7 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
   const reducedMotion = useReducedMotionPreference();
   const listRef = useRef<FlatList<ZimMoment>>(null);
   const [activeIndex, setActiveIndex] = useState(initialIndex);
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
   const [shouldPlay, setShouldPlay] = useState(true);
   const [captionExpanded, setCaptionExpanded] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
@@ -225,16 +225,16 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
     [moments.length]
   );
 
-  const silenceReelPlayers = useCallback(() => {
-    silenceCachedVideoPlayers(videoUrlsRef.current);
+  const pauseReelPlayers = useCallback(() => {
+    pauseCachedVideoPlayers(videoUrlsRef.current);
   }, []);
 
   const close = useCallback(() => {
     setIsDismissing(true);
     setShouldPlay(false);
-    silenceReelPlayers();
+    pauseReelPlayers();
     router.back();
-  }, [silenceReelPlayers, router]);
+  }, [pauseReelPlayers, router]);
 
   const toggleMute = useCallback(() => {
     setIsMuted((current) => !current);
@@ -245,12 +245,10 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
   useFocusEffect(
     useCallback(() => {
       return () => {
-        silenceReelPlayers();
+        pauseReelPlayers();
       };
-    }, [silenceReelPlayers])
+    }, [pauseReelPlayers])
   );
-
-  useEffect(() => silenceReelPlayers, [silenceReelPlayers]);
 
   if (isDismissing) {
     return <View style={[styles.reel, { backgroundColor: '#000000' }]} />;

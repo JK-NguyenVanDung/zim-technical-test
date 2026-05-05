@@ -14,8 +14,8 @@ export function getCachedVideoPlayer(uri: string): VideoPlayer {
 
   player = createVideoPlayer({ uri });
   player.loop = true;
-  player.muted = true;
-  player.audioMixingMode = 'mixWithOthers';
+  player.muted = false;
+  player.audioMixingMode = 'auto';
   player.allowsExternalPlayback = false;
   player.showNowPlayingNotification = false;
   player.staysActiveInBackground = false;
@@ -53,16 +53,3 @@ export function pauseCachedVideoPlayers(uris: string[]) {
   }
 }
 
-export function silenceCachedVideoPlayer(uri: string) {
-  const player = cache.get(uri);
-  try {
-    player?.pause();
-    if (player) player.muted = true;
-  } catch {}
-}
-
-export function silenceCachedVideoPlayers(uris: string[]) {
-  for (const uri of new Set(uris)) {
-    silenceCachedVideoPlayer(uri);
-  }
-}

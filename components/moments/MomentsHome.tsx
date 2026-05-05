@@ -309,6 +309,7 @@ const styles = StyleSheet.create({
   carousel: {
     alignItems: "flex-start",
     gap: 22,
+    paddingTop: 28,
   },
   blueGlow: {
     backgroundColor: "rgba(45, 60, 140, 0.5)",

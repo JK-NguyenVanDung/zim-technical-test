@@ -55,6 +55,9 @@ function MomentCardComponent({
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const draggedRef = useRef(false);
   const edgeGestureRef = useRef(false);
+  // Tilt is gated behind a 1.5 s hold — taps never engage it
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tiltReadyRef = useRef(false);
   const [pressed, setPressed] = useState(false);
 
   // Fraction of card width treated as an edge zone, scroll wins here
@@ -92,6 +95,17 @@ function MomentCardComponent({
         }),
       ]).start();
     };
+    const cancelHold = () => {
+      if (holdTimerRef.current) {
+        clearTimeout(holdTimerRef.current);
+        holdTimerRef.current = null;
+      }
+      tiltReadyRef.current = false;
+    };
+    const releaseWithCancel = () => {
+      cancelHold();
+      release();
+    };
     return {
       onTouchStart: (e: GestureResponderEvent) => {
         const { width } = cardSizeRef.current;
@@ -100,18 +114,27 @@ function MomentCardComponent({
           width > 0 &&
           (lx < width * EDGE_FRACTION || lx > width * (1 - EDGE_FRACTION));
 
-        touchStartRef.current = {
-          x: e.nativeEvent.pageX,
-          y: e.nativeEvent.pageY,
-        };
+        // Snapshot the touch origin for drag-distance tracking
+        const snapshot = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
+        touchStartRef.current = snapshot;
         draggedRef.current = false;
-        // Track edge origin but always activate tilt — a still hold on the
-        // edge should feel like a normal hold. Only a horizontal drag will
-        // later hand control back to the carousel.
+        tiltReadyRef.current = false;
         edgeGestureRef.current = inEdgeZone;
 
-        onTiltActiveChange?.(true);
-        updateTilt(e);
+        // Cancel any previous pending hold timer
+        if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+
+        // Tilt only activates after a deliberate 1.5 s hold.
+        // Capture the event position at start time for the initial updateTilt.
+        const startE = e;
+        holdTimerRef.current = setTimeout(() => {
+          holdTimerRef.current = null;
+          // Abort if the finger moved significantly while waiting
+          if (draggedRef.current) return;
+          tiltReadyRef.current = true;
+          onTiltActiveChange?.(true);
+          updateTilt(startE);
+        }, 1500);
       },
       onTouchMove: (e: GestureResponderEvent) => {
         const start = touchStartRef.current;
@@ -120,27 +143,38 @@ function MomentCardComponent({
           const dy = e.nativeEvent.pageY - start.y;
           if (Math.hypot(dx, dy) > 8) {
             draggedRef.current = true;
-            // Predominantly horizontal drag on ANY zone -> yield to carousel.
-            // Edge-zone gestures get a slightly lower threshold so swiping
-            // from the edge still feels natural.
+            // Any significant movement before tilt is ready cancels the hold timer
+            if (!tiltReadyRef.current) {
+              cancelHold();
+            }
+            // Predominantly horizontal drag -> yield to carousel.
+            // Edge zone uses a lower ratio so edge swipes still feel natural.
             const threshold = edgeGestureRef.current ? 1.0 : 1.2;
             if (Math.abs(dx) > Math.abs(dy) * threshold) {
-              release(); // drop tilt, re-enable FlatList scroll
-              edgeGestureRef.current = true; // suppress further updateTilt
+              releaseWithCancel();
+              edgeGestureRef.current = true;
               return;
             }
           }
         }
+        // Only update tilt visuals once the hold threshold has been passed
+        if (!tiltReadyRef.current) return;
         if (edgeGestureRef.current && draggedRef.current) return;
         updateTilt(e);
       },
-      onTouchEnd: release,
-      onTouchCancel: release,
+      onTouchEnd: releaseWithCancel,
+      onTouchCancel: releaseWithCancel,
     };
   }, [reducedMotion, isPreviewed, onTiltActiveChange, tiltX, tiltY]);
 
   useEffect(() => {
     if (!isPreviewed) {
+      // Cancel pending hold timer so tilt cannot fire on a de-focused card
+      if (holdTimerRef.current) {
+        clearTimeout(holdTimerRef.current);
+        holdTimerRef.current = null;
+      }
+      tiltReadyRef.current = false;
       tiltX.stopAnimation();
       tiltY.stopAnimation();
       tiltX.setValue(0);

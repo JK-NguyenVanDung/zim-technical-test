@@ -55,7 +55,7 @@ function MomentCardComponent({
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const draggedRef = useRef(false);
   const edgeGestureRef = useRef(false);
-  // Tilt is gated behind a 1.5 s hold — taps never engage it
+  // Tilt is gated behind a short hold — taps never engage it
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tiltReadyRef = useRef(false);
   const [pressed, setPressed] = useState(false);
@@ -114,9 +114,7 @@ function MomentCardComponent({
           width > 0 &&
           (lx < width * EDGE_FRACTION || lx > width * (1 - EDGE_FRACTION));
 
-        // Snapshot the touch origin for drag-distance tracking
-        const snapshot = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
-        touchStartRef.current = snapshot;
+        touchStartRef.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
         draggedRef.current = false;
         tiltReadyRef.current = false;
         edgeGestureRef.current = inEdgeZone;
@@ -124,17 +122,16 @@ function MomentCardComponent({
         // Cancel any previous pending hold timer
         if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
 
-        // Tilt only activates after a deliberate 1.5 s hold.
-        // Capture the event position at start time for the initial updateTilt.
+        // Tilt only activates after a deliberate 180 ms hold.
+        // A quick tap lifts before the timer fires → tilt never engages.
         const startE = e;
         holdTimerRef.current = setTimeout(() => {
           holdTimerRef.current = null;
-          // Abort if the finger moved significantly while waiting
-          if (draggedRef.current) return;
+          if (draggedRef.current) return; // finger moved — skip tilt
           tiltReadyRef.current = true;
           onTiltActiveChange?.(true);
           updateTilt(startE);
-        }, 1500);
+        }, 180);
       },
       onTouchMove: (e: GestureResponderEvent) => {
         const start = touchStartRef.current;
@@ -143,11 +140,11 @@ function MomentCardComponent({
           const dy = e.nativeEvent.pageY - start.y;
           if (Math.hypot(dx, dy) > 8) {
             draggedRef.current = true;
-            // Any significant movement before tilt is ready cancels the hold timer
+            // Significant movement before tilt is ready → cancel hold timer
             if (!tiltReadyRef.current) {
               cancelHold();
             }
-            // Predominantly horizontal drag -> yield to carousel.
+            // Predominantly horizontal drag → yield to carousel.
             // Edge zone uses a lower ratio so edge swipes still feel natural.
             const threshold = edgeGestureRef.current ? 1.0 : 1.2;
             if (Math.abs(dx) > Math.abs(dy) * threshold) {

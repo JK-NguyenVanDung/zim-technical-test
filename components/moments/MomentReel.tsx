@@ -470,6 +470,19 @@ function MomentVideo({
 }) {
   const player = useMemo(() => getCachedVideoPlayer(videoUrl), [videoUrl]);
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
+  const wasActiveRef = useRef(false);
+
+  // Reset to beginning each time this slide becomes the active one so the
+  // cached player (which may be mid-playback from carousel preview warming)
+  // always starts fresh for the viewer.
+  useEffect(() => {
+    if (isActive && !wasActiveRef.current) {
+      try {
+        player.currentTime = 0;
+      } catch {}
+    }
+    wasActiveRef.current = isActive;
+  }, [isActive, player]);
 
   useEffect(() => {
     player.muted = isMuted;

@@ -3,16 +3,16 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
-  PanResponder,
   Pressable,
   StyleSheet,
   Text,
   View,
+  type GestureResponderEvent,
 } from 'react-native';
 
-const TILT_MAX_DEG = 9;
-const PARALLAX_IMAGE_PX = 14;
-const PARALLAX_CAPTION_PX = 10;
+const TILT_MAX_DEG = 16;
+const PARALLAX_IMAGE_PX = 22;
+const PARALLAX_CAPTION_PX = 14;
 
 import type { MomentPalette } from '@/components/moments/MomentPalette';
 import type { ZimMoment } from '@/types/moment';
@@ -25,6 +25,7 @@ type MomentCardProps = {
   moment: ZimMoment;
   onPress: (id: string) => void;
   onPreview: (id: string) => void;
+  onTiltActiveChange?: (active: boolean) => void;
   palette: MomentPalette;
   reducedMotion: boolean;
   snapInterval: number;
@@ -39,6 +40,7 @@ function MomentCardComponent({
   moment,
   onPress,
   onPreview,
+  onTiltActiveChange,
   palette,
   reducedMotion,
   snapInterval,
@@ -50,40 +52,82 @@ function MomentCardComponent({
   const tiltX = useRef(new Animated.Value(0)).current;
   const tiltY = useRef(new Animated.Value(0)).current;
   const cardSizeRef = useRef({ width: 0, height: 0 });
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const draggedRef = useRef(false);
+  const edgeGestureRef = useRef(false);
   const [pressed, setPressed] = useState(false);
 
-  const panResponder = useMemo(() => {
-    if (reducedMotion) {
+  // Fraction of card width treated as an edge zone — scroll wins here
+  const EDGE_FRACTION = 0.22;
+
+  const tiltHandlers = useMemo(() => {
+    if (reducedMotion || !isPreviewed) {
       return null;
     }
-    const updateTilt = (locationX: number, locationY: number) => {
+    const updateTilt = (e: GestureResponderEvent) => {
       const { width, height } = cardSizeRef.current;
       if (!width || !height) {
         return;
       }
+      const { locationX, locationY } = e.nativeEvent;
       const nx = Math.max(-1, Math.min(1, (locationX / width) * 2 - 1));
       const ny = Math.max(-1, Math.min(1, (locationY / height) * 2 - 1));
       tiltX.setValue(-ny);
       tiltY.setValue(nx);
     };
     const release = () => {
+      onTiltActiveChange?.(false);
       Animated.parallel([
         Animated.spring(tiltX, { toValue: 0, useNativeDriver: true, friction: 6, tension: 90 }),
         Animated.spring(tiltY, { toValue: 0, useNativeDriver: true, friction: 6, tension: 90 }),
       ]).start();
     };
-    return PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gesture) =>
-        Math.abs(gesture.dx) > 2 || Math.abs(gesture.dy) > 2,
-      onPanResponderTerminationRequest: () => true,
-      onPanResponderMove: (evt) => {
-        updateTilt(evt.nativeEvent.locationX, evt.nativeEvent.locationY);
+    return {
+      onTouchStart: (e: GestureResponderEvent) => {
+        const { width } = cardSizeRef.current;
+        const lx = e.nativeEvent.locationX;
+        const inEdgeZone = width > 0 && (lx < width * EDGE_FRACTION || lx > width * (1 - EDGE_FRACTION));
+
+        touchStartRef.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
+        draggedRef.current = false;
+        edgeGestureRef.current = inEdgeZone;
+
+        if (inEdgeZone) return; // yield scroll priority on edges
+
+        onTiltActiveChange?.(true);
+        updateTilt(e);
       },
-      onPanResponderRelease: release,
-      onPanResponderTerminate: release,
-    });
-  }, [reducedMotion, tiltX, tiltY]);
+      onTouchMove: (e: GestureResponderEvent) => {
+        const start = touchStartRef.current;
+        if (start) {
+          const dx = e.nativeEvent.pageX - start.x;
+          const dy = e.nativeEvent.pageY - start.y;
+          if (Math.hypot(dx, dy) > 8) {
+            draggedRef.current = true;
+            // Predominantly horizontal drag → release tilt so scroll can take over
+            if (Math.abs(dx) > Math.abs(dy) * 1.2) {
+              if (!edgeGestureRef.current) release();
+              edgeGestureRef.current = true;
+              return;
+            }
+          }
+        }
+        if (edgeGestureRef.current) return;
+        updateTilt(e);
+      },
+      onTouchEnd: release,
+      onTouchCancel: release,
+    };
+  }, [reducedMotion, isPreviewed, onTiltActiveChange, tiltX, tiltY]);
+
+  useEffect(() => {
+    if (!isPreviewed) {
+      tiltX.stopAnimation();
+      tiltY.stopAnimation();
+      tiltX.setValue(0);
+      tiltY.setValue(0);
+    }
+  }, [isPreviewed, tiltX, tiltY]);
 
   useEffect(() => {
     Animated.timing(hoverProgress, {
@@ -151,10 +195,20 @@ function MomentCardComponent({
     };
   }, [index, reducedMotion, scrollX, snapInterval]);
 
+  const tiltRotateX = tiltX.interpolate({
+    inputRange: [-1, 1],
+    outputRange: [`-${TILT_MAX_DEG}deg`, `${TILT_MAX_DEG}deg`],
+  });
+  const tiltRotateY = tiltY.interpolate({
+    inputRange: [-1, 1],
+    outputRange: [`-${TILT_MAX_DEG}deg`, `${TILT_MAX_DEG}deg`],
+  });
+
   const hoverStyle = reducedMotion
     ? undefined
     : {
         transform: [
+          { perspective: 900 },
           {
             translateY: hoverProgress.interpolate({
               inputRange: [0, 1],
@@ -167,6 +221,8 @@ function MomentCardComponent({
               outputRange: [1, 1.025],
             }),
           },
+          { rotateX: tiltRotateX },
+          { rotateY: tiltRotateY },
         ],
       };
 
@@ -175,10 +231,19 @@ function MomentCardComponent({
     : {
         transform: [
           {
-            translateY: hoverProgress.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, -8],
+            translateX: tiltY.interpolate({
+              inputRange: [-1, 1],
+              outputRange: [-PARALLAX_IMAGE_PX, PARALLAX_IMAGE_PX],
             }),
+          },
+          {
+            translateY: Animated.add(
+              hoverProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -8] }),
+              tiltX.interpolate({
+                inputRange: [-1, 1],
+                outputRange: [PARALLAX_IMAGE_PX, -PARALLAX_IMAGE_PX],
+              })
+            ),
           },
           {
             scale: hoverProgress.interpolate({
@@ -199,10 +264,19 @@ function MomentCardComponent({
         opacity: hoverProgress.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
         transform: [
           {
-            translateY: hoverProgress.interpolate({
-              inputRange: [0, 1],
-              outputRange: [10, 0],
+            translateX: tiltY.interpolate({
+              inputRange: [-1, 1],
+              outputRange: [PARALLAX_CAPTION_PX, -PARALLAX_CAPTION_PX],
             }),
+          },
+          {
+            translateY: Animated.add(
+              hoverProgress.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }),
+              tiltX.interpolate({
+                inputRange: [-1, 1],
+                outputRange: [-PARALLAX_CAPTION_PX, PARALLAX_CAPTION_PX],
+              })
+            ),
           },
         ],
       };
@@ -220,6 +294,7 @@ function MomentCardComponent({
     <Animated.View style={[styles.outer, scrollStyle, { width: itemWidth }]}>
       <Animated.View style={hoverStyle}>
         <Pressable
+          {...(tiltHandlers ?? {})}
           accessibilityHint={
             isPreviewed
               ? 'Chạm lần nữa để mở khoảnh khắc toàn màn hình'
@@ -230,7 +305,19 @@ function MomentCardComponent({
           onBlur={() => setPressed(false)}
           onFocus={() => onPreview(moment.id)}
           onHoverIn={() => onPreview(moment.id)}
-          onPress={() => onPress(moment.id)}
+          onLayout={(e) => {
+            cardSizeRef.current = {
+              width: e.nativeEvent.layout.width,
+              height: e.nativeEvent.layout.height,
+            };
+          }}
+          onPress={() => {
+            if (draggedRef.current) {
+              draggedRef.current = false;
+              return;
+            }
+            onPress(moment.id);
+          }}
           onPressIn={() => setPressed(true)}
           onPressOut={() => setPressed(false)}
           style={[

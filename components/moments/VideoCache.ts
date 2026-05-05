@@ -15,6 +15,7 @@ export function getCachedVideoPlayer(uri: string): VideoPlayer {
   player = createVideoPlayer({ uri });
   player.loop = true;
   player.muted = true;
+  player.audioMixingMode = 'mixWithOthers';
   player.allowsExternalPlayback = false;
   player.showNowPlayingNotification = false;
   player.staysActiveInBackground = false;

@@ -540,13 +540,16 @@ function MomentVideo({
   }, [isActive, player, shouldPlay]);
 
   useEffect(() => {
-    if (isActive) {
-      player.muted = isMuted;
-      if (shouldPlay && player.status === 'readyToPlay') {
-        player.play();
-      }
-    }
-  }, [isActive, isMuted, player, shouldPlay]);
+    if (!isActive) return;
+    player.muted = isMuted;
+  }, [isActive, isMuted, player]);
+
+  useEffect(() => {
+    if (!isActive || !shouldPlay) return;
+    if (isPlaying) return;
+    if (player.status !== 'readyToPlay') return;
+    player.play();
+  }, [isActive, isMuted, isPlaying, player, shouldPlay, status]);
 
   const wasActiveRef = useRef(false);
   useEffect(() => {

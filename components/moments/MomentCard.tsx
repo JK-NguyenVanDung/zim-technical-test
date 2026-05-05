@@ -67,12 +67,9 @@ function MomentCardComponent({
     if (reducedMotion || !isPreviewed) {
       return null;
     }
-    const updateTilt = (e: GestureResponderEvent) => {
+    const updateTilt = (locationX: number, locationY: number) => {
       const { width, height } = cardSizeRef.current;
-      if (!width || !height) {
-        return;
-      }
-      const { locationX, locationY } = e.nativeEvent;
+      if (!width || !height) return;
       const nx = Math.max(-1, Math.min(1, (locationX / width) * 2 - 1));
       const ny = Math.max(-1, Math.min(1, (locationY / height) * 2 - 1));
       tiltX.setValue(-ny);
@@ -119,18 +116,16 @@ function MomentCardComponent({
         tiltReadyRef.current = false;
         edgeGestureRef.current = inEdgeZone;
 
-        // Cancel any previous pending hold timer
-        if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
-
-        // Tilt only activates after a deliberate 180 ms hold.
-        // A quick tap lifts before the timer fires → tilt never engages.
-        const startE = e;
+        // Snapshot coords NOW — the event object is pooled and nulled
+        // by the time setTimeout fires 180ms later.
+        const startLX = e.nativeEvent.locationX;
+        const startLY = e.nativeEvent.locationY;
         holdTimerRef.current = setTimeout(() => {
           holdTimerRef.current = null;
           if (draggedRef.current) return; // finger moved — skip tilt
           tiltReadyRef.current = true;
           onTiltActiveChange?.(true);
-          updateTilt(startE);
+          updateTilt(startLX, startLY);
         }, 180);
       },
       onTouchMove: (e: GestureResponderEvent) => {
@@ -157,7 +152,7 @@ function MomentCardComponent({
         // Only update tilt visuals once the hold threshold has been passed
         if (!tiltReadyRef.current) return;
         if (edgeGestureRef.current && draggedRef.current) return;
-        updateTilt(e);
+        updateTilt(e.nativeEvent.locationX, e.nativeEvent.locationY);
       },
       onTouchEnd: releaseWithCancel,
       onTouchCancel: releaseWithCancel,

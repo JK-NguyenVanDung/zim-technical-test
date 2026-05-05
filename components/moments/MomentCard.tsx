@@ -92,10 +92,10 @@ function MomentCardComponent({
         draggedRef.current = false;
         edgeGestureRef.current = inEdgeZone;
 
-        if (inEdgeZone) return; // yield scroll priority on edges
-
+        // Always lock carousel on touch start (edge or not) so a still hold
+        // never triggers accidental scrolling. Tilt is only applied outside edges.
         onTiltActiveChange?.(true);
-        updateTilt(e);
+        if (!inEdgeZone) updateTilt(e);
       },
       onTouchMove: (e: GestureResponderEvent) => {
         const start = touchStartRef.current;
@@ -104,9 +104,9 @@ function MomentCardComponent({
           const dy = e.nativeEvent.pageY - start.y;
           if (Math.hypot(dx, dy) > 8) {
             draggedRef.current = true;
-            // Predominantly horizontal drag → release tilt so scroll can take over
+            // Predominantly horizontal drag → unlock carousel, surrender scroll priority
             if (Math.abs(dx) > Math.abs(dy) * 1.2) {
-              if (!edgeGestureRef.current) release();
+              release(); // resets tilt + calls onTiltActiveChange(false)
               edgeGestureRef.current = true;
               return;
             }

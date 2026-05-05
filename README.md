@@ -1,71 +1,51 @@
-# ZIM Moments Expo Go Demo
+# ZIM Moments
 
-Expo technical-test project for the ZIM homepage section `6650 khoảnh khắc đáng nhớ`.
+React Native/Expo technical test project replicating the "6650 khoảnh khắc đáng nhớ" section from the ZIM homepage.
 
-Current state: full Expo Go demo with a stack-only Vietnamese home screen, horizontal video discovery, native Animated hover/move effects, and a fullscreen reel modal.
+This app features a horizontal story carousel, custom `Animated` swipe/tilt/parallax interactions, and a fullscreen vertical video reel built specifically for mobile.
 
-## Stack
+## Reviewer Guide
 
-- Expo SDK 54
-- React Native 0.81.5
-- React 19.1.0
-- Expo Router
-- Expo Video
-- Expo Screen Orientation
-- TypeScript strict mode
-- Expo Go target
-
-## Setup
-
+### Local Setup
 ```bash
 npm install
+npm start
 ```
+Press `i` to open the iOS Simulator or `a` for the Android Emulator.
+You can also scan the QR code with the Expo Go app on a physical device.
 
-## Run
+### Build Instructions
 
+**Android APK**
+To generate an installable APK for Android devices:
 ```bash
-npm run start
+npx eas build -p android --profile preview --local
 ```
+*(Requires Java/Android SDK installed locally. Drop the `--local` flag to build on Expo's cloud if you have an EAS account).*
 
-Scan the QR code with Expo Go.
-
-## Build
-
-Expo Go is the primary demo path. For an APK handoff, log in to EAS and run:
-
+**iOS**
+Expo Go is recommended for testing on iOS. If you need a standalone iOS build (requires an Apple Developer account):
 ```bash
-npx eas build -p android --profile preview
+npx eas build -p ios
 ```
 
-The `preview` profile outputs an internal Android APK.
+## Technical Decisions & Reasoning
 
-## Lint
+**1. Stack Choice (Expo & React Native)**
+I used Expo SDK 54 to get native mobile functionality quickly. Expo's modern first-party modules (`expo-video`, `expo-image`) provide reliable caching, hardware acceleration, and native performance out of the box, which is essential for heavy media feeds.
 
-```bash
-npm run lint
-npx tsc --noEmit
-```
+**2. Data Mocking Strategy**
+The dataset is scraped from zim.vn and hardcoded locally. This guarantees the demo works offline and doesn't break due to network issues or API changes during the review process. 
 
-## What Is Implemented
+**3. Performance Optimization**
+- **Lists:** Used `FlatList` instead of mapping standard views. It keeps the render tree light by only mounting a small window of visible cards and lazy-loading offscreen items.
+- **Images:** `expo-image` handles disk/memory caching, key recycling, and aggressive downscaling.
+- **Video Memory:** Only the actively focused video is initialized and played to avoid concurrent decoding overhead.
 
-- `types/moment.ts`: strict shared data contract for ZIM moments.
-- `data/ZimMoments.ts`: curated static data crawled from `zim.vn`.
-- `components/moments/`: home section, carousel card, fullscreen reel, and theme palette.
-- `app/index.tsx`: ZIM moments home route.
-- `app/moment/[id].tsx`: fullscreen modal reel route.
-- `eas.json`: preview APK build profile for EAS.
-- `tracking.md`: process notes for interview explanation and verification.
+**4. Animations & Gesture Handling**
+- Built with React Native's core `Animated` API using the native driver. I restricted animated styles strictly to `transform` and `opacity` to keep layout calculations off the JS thread.
+- For interaction conflicts (e.g., trying to scroll the carousel while the card tilt gesture is active), I implemented custom gesture handling. The tilt effect is gated behind a 180ms delay, and dragging horizontally correctly yields to the scroll view.
 
-## Product Direction
-
-The app recreates the ZIM homepage “Memorable Moments” section in a mobile Expo environment. It keeps the dark section, centered Vietnamese heading, horizontal story cards, video play affordance, and fullscreen reel behavior.
-
-The data comes from the ZIM homepage stories GraphQL call used by the web section. Items include `thumbnailUrl` and playable `videoUrl` values from `social-media.zim.vn`, with `expo-video` handling fullscreen playback.
-
-## Interview Notes
-
-- Data is static by design so the demo works during interview without depending on ZIM API availability.
-- Motion uses React Native `Animated` with native driver, transform, and opacity only.
-- First tap/focus/hover previews the card; second tap opens the reel.
-- Reduced-motion mode disables the stronger card movement.
-- The app stays Expo Go only; no custom native build or development client is required.
+**5. Accessibility & UX Adjustments**
+- **Reduced Motion:** The app checks the OS `prefers-reduced-motion` setting. If enabled, it strips out the heavy 3D tilt and parallax effects.
+- **Orientation:** Handles both portrait and landscape layouts dynamically. Layout math adapts to prevent notches and navigation bars from clipping content.

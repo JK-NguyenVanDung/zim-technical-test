@@ -543,6 +543,18 @@ function MomentVideo({
     if (isActive) player.muted = isMuted;
   }, [isActive, isMuted, player]);
 
+  const wasActiveRef = useRef(false);
+  useEffect(() => {
+    if (isActive && !wasActiveRef.current) {
+      try {
+        player.currentTime = 0;
+      } catch (e) {
+        // Ignore seek errors on unready players
+      }
+    }
+    wasActiveRef.current = isActive;
+  }, [isActive, player]);
+
   useEffect(() => {
     if (!isActive || !shouldPlay) {
       player.pause();

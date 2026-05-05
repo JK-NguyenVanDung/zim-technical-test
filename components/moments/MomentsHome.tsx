@@ -116,10 +116,33 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
   }, [previewedMoment?.videoUrl]);
 
   const isLandscape = width > height;
+
+  // ─── Responsive card sizing ────────────────────────────────────────────
+  // Reserve space for: safe areas + top padding + heading block + gap + bottom buffer.
+  // heading block ≈ 120px portrait / 80px landscape (title + description + gap).
+  const headingReserve = isLandscape ? 80 : 120;
+  const bottomBuffer = Math.max(insets.bottom + 32, height * 0.09);
+  const carouselPaddingTop = 28;
+  const availableCardH =
+    height -
+    insets.top -
+    insets.bottom -
+    (isLandscape ? 18 : 34) - // content paddingTop
+    headingReserve -
+    18 - // content gap
+    carouselPaddingTop -
+    bottomBuffer;
+
+  // Cap width from both the horizontal 58% rule AND the vertical height budget.
+  const maxWidthFromHeight = Math.max(140, availableCardH * (9 / 16));
   const itemWidth = Math.min(
     isLandscape ? 260 : 290,
     Math.max(172, width * 0.58),
+    maxWidthFromHeight,
   );
+
+  const cardHeight = itemWidth * (16 / 9);
+  const listHeight = carouselPaddingTop + cardHeight + bottomBuffer;
   const snapInterval = itemWidth + 22;
   const sidePadding = Math.max(18, (width - itemWidth) / 2);
 
@@ -267,7 +290,7 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
           showsHorizontalScrollIndicator={false}
           snapToAlignment="start"
           snapToInterval={snapInterval}
-          style={styles.list}
+          style={[styles.list, { height: listHeight }]}
           windowSize={5}
         />
       </View>
@@ -304,12 +327,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   list: {
-    flex: 1,
+    flexGrow: 0,
   },
   carousel: {
     alignItems: "flex-start",
     gap: 22,
-    paddingTop: 28,
+    paddingTop: 28, // matches carouselPaddingTop constant above
   },
   blueGlow: {
     backgroundColor: "rgba(45, 60, 140, 0.5)",

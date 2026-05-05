@@ -15,13 +15,13 @@ export function getCachedVideoPlayer(uri: string): VideoPlayer {
   player = createVideoPlayer({ uri });
   player.loop = true;
   player.muted = true;
+  player.allowsExternalPlayback = false;
+  player.showNowPlayingNotification = false;
+  player.staysActiveInBackground = false;
   player.bufferOptions = {
     preferredForwardBufferDuration: 6,
     minBufferForPlayback: 1,
   };
-  // Do NOT auto-play here — let each consumer drive playback so the
-  // currentTime never advances before the reel opens.
-
   cache.set(uri, player);
 
   if (cache.size > MAX_PLAYERS) {
@@ -46,13 +46,22 @@ export function pauseCachedVideoPlayer(uri: string) {
   } catch {}
 }
 
-/**
- * Seek a cached player back to the start so that the next viewer always
- * begins at 0:00, regardless of how far playback advanced during pre-warming.
- */
-export function resetCachedVideoPlayer(uri: string) {
+export function pauseCachedVideoPlayers(uris: string[]) {
+  for (const uri of new Set(uris)) {
+    pauseCachedVideoPlayer(uri);
+  }
+}
+
+export function silenceCachedVideoPlayer(uri: string) {
   const player = cache.get(uri);
   try {
-    if (player) player.currentTime = 0;
+    player?.pause();
+    if (player) player.muted = true;
   } catch {}
+}
+
+export function silenceCachedVideoPlayers(uris: string[]) {
+  for (const uri of new Set(uris)) {
+    silenceCachedVideoPlayer(uri);
+  }
 }

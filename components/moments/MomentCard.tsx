@@ -9,19 +9,21 @@ import {
   Text,
   View,
   type GestureResponderEvent,
+  type ViewStyle,
 } from "react-native";
-
-const TILT_MAX_DEG = Platform.OS === "web" ? 16 : 4;
-const PARALLAX_IMAGE_PX = 22;
-const PARALLAX_CAPTION_PX = 10;
 
 import type { MomentPalette } from "@/components/moments/MomentPalette";
 import type { ZimMoment } from "@/types/moment";
 
+const TILT_MAX_DEG = Platform.OS === "web" ? 16 : 4;
+const PARALLAX_IMAGE_PX = 22;
+const PARALLAX_CAPTION_PX = 10;
+const EDGE_FRACTION = 0.2;
+
 type MomentCardProps = {
   index: number;
-  isPreviewed: boolean;
   isPending: boolean;
+  isPreviewed: boolean;
   itemWidth: number;
   moment: ZimMoment;
   onPress: (id: string) => void;
@@ -35,8 +37,8 @@ type MomentCardProps = {
 
 function MomentCardComponent({
   index,
-  isPreviewed,
   isPending,
+  isPreviewed,
   itemWidth,
   moment,
   onPress,
@@ -56,14 +58,10 @@ function MomentCardComponent({
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const draggedRef = useRef(false);
   const edgeGestureRef = useRef(false);
-  // Tilt is gated behind a short hold — taps never engage it
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tiltReadyRef = useRef(false);
   const [pressed, setPressed] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
-
-  // Fraction of card width treated as an edge zone, scroll wins here
-  const EDGE_FRACTION = 0.2;
 
   const touchHandlers = useMemo(() => {
     const updateTilt = (locationX: number, locationY: number) => {
@@ -112,20 +110,20 @@ function MomentCardComponent({
           width > 0 &&
           (lx < width * EDGE_FRACTION || lx > width * (1 - EDGE_FRACTION));
 
-        touchStartRef.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
+        touchStartRef.current = {
+          x: e.nativeEvent.pageX,
+          y: e.nativeEvent.pageY,
+        };
         draggedRef.current = false;
         tiltReadyRef.current = false;
         edgeGestureRef.current = inEdgeZone;
 
         if (reducedMotion || !isPreviewed) return;
-
-        // Snapshot coords NOW — the event object is pooled and nulled
-        // by the time setTimeout fires 180ms later.
         const startLX = e.nativeEvent.locationX;
         const startLY = e.nativeEvent.locationY;
         holdTimerRef.current = setTimeout(() => {
           holdTimerRef.current = null;
-          if (draggedRef.current) return; // finger moved — skip tilt
+          if (draggedRef.current) return;
           tiltReadyRef.current = true;
           onTiltActiveChange?.(true);
           updateTilt(startLX, startLY);
@@ -138,11 +136,8 @@ function MomentCardComponent({
           const dy = e.nativeEvent.pageY - start.y;
           if (Math.hypot(dx, dy) > 8) {
             draggedRef.current = true;
-            // Significant movement before tilt is ready → cancel hold timer
             if (!tiltReadyRef.current) {
               cancelHold();
-              // Predominantly horizontal drag → yield to carousel.
-              // Edge zone uses a lower ratio so edge swipes still feel natural.
               const threshold = edgeGestureRef.current ? 1.0 : 1.2;
               if (Math.abs(dx) > Math.abs(dy) * threshold) {
                 releaseWithCancel();
@@ -152,10 +147,9 @@ function MomentCardComponent({
             }
           }
         }
-        
+
         if (reducedMotion || !isPreviewed) return;
 
-        // Only update tilt visuals once the hold threshold has been passed
         if (!tiltReadyRef.current) return;
         updateTilt(e.nativeEvent.locationX, e.nativeEvent.locationY);
       },
@@ -166,7 +160,6 @@ function MomentCardComponent({
 
   useEffect(() => {
     if (!isPreviewed) {
-      // Cancel pending hold timer so tilt cannot fire on a de-focused card
       if (holdTimerRef.current) {
         clearTimeout(holdTimerRef.current);
         holdTimerRef.current = null;
@@ -207,6 +200,7 @@ function MomentCardComponent({
         }),
       ).start();
     }
+
     Animated.timing(ringFill, {
       duration: reducedMotion ? 0 : 2000,
       easing: Easing.out(Easing.quad),
@@ -348,6 +342,14 @@ function MomentCardComponent({
         ],
       };
 
+  const webFocusStyle: ViewStyle | undefined =
+    isFocused && Platform.OS === "web"
+      ? {
+          outlineColor: palette.text,
+          outlineStyle: "solid",
+          outlineWidth: 3,
+      }
+      : undefined;
   const ringRotation = ringRotate.interpolate({
     inputRange: [0, 1],
     outputRange: ["0deg", "360deg"],
@@ -403,20 +405,17 @@ function MomentCardComponent({
                   ? palette.border
                   : "rgba(255, 255, 255, 0.18)",
             },
-            isFocused &&
-              Platform.OS === "web" &&
-              ({
-                outlineColor: palette.text,
-                outlineStyle: "solid",
-                outlineWidth: 3,
-              } as any),
+            webFocusStyle,
           ]}
         >
           <View style={styles.mediaFrame}>
             <Animated.View style={[styles.imageLayer, imageStyle]}>
               <Image
                 accessibilityIgnoresInvertColors
+                allowDownscaling
+                cachePolicy="memory-disk"
                 contentFit="cover"
+                priority={isPreviewed ? "high" : "low"}
                 recyclingKey={moment.id}
                 source={{ uri: moment.thumbnailUrl }}
                 style={styles.image}

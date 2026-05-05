@@ -4,10 +4,12 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { VideoView, type VideoPlayer } from 'expo-video';
+import { useFocusEffect } from '@react-navigation/native';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   FlatList,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,13 +18,17 @@ import {
   useWindowDimensions,
   View,
   type ListRenderItemInfo,
+  type ViewStyle,
   type ViewToken,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getMomentPalette } from '@/components/moments/MomentPalette';
 import type { MomentPalette } from '@/components/moments/MomentPalette';
-import { getCachedVideoPlayer, resetCachedVideoPlayer } from '@/components/moments/VideoCache';
+import {
+  getCachedVideoPlayer,
+  silenceCachedVideoPlayers,
+} from '@/components/moments/VideoCache';
 import { useReducedMotionPreference } from '@/hooks/UseReducedMotionPreference';
 import type { ZimMoment } from '@/types/moment';
 
@@ -43,6 +49,13 @@ type ReelSlideProps = {
   shouldPlay: boolean;
 };
 
+type ReelIconName = React.ComponentProps<typeof Ionicons>['name'];
+type WebFocusStyle = ViewStyle & {
+  outlineColor?: string;
+  outlineStyle?: 'solid';
+  outlineWidth?: number;
+};
+
 const AUTO_FADE_MS = 900;
 
 export function MomentReel({ initialIndex, moments }: MomentReelProps) {
@@ -56,9 +69,11 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
   const [isMuted, setIsMuted] = useState(true);
   const [shouldPlay, setShouldPlay] = useState(true);
   const [captionExpanded, setCaptionExpanded] = useState(false);
+  const [isDismissing, setIsDismissing] = useState(false);
   const overlayOpacity = useRef(new Animated.Value(1)).current;
   const overlayScale = useRef(new Animated.Value(1)).current;
   const fadeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const videoUrlsRef = useRef<string[]>([]);
   const palette = useMemo(() => getMomentPalette(colorScheme), [colorScheme]);
   const activeMoment = moments[activeIndex] ?? moments[0];
   const hasVideo = Boolean(activeMoment?.videoUrl);
@@ -67,13 +82,11 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
     [activeMoment?.videoUrl]
   );
 
-  // Always start the video from the beginning when the reel opens or the
-  // active slide changes, in case the player was pre-warmed from the carousel.
   useEffect(() => {
-    if (activeMoment?.videoUrl) {
-      resetCachedVideoPlayer(activeMoment.videoUrl);
-    }
-  }, [activeMoment?.videoUrl]);
+    videoUrlsRef.current = moments
+      .map((moment) => moment.videoUrl)
+      .filter((uri): uri is string => Boolean(uri));
+  }, [moments]);
 
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 70 }).current;
   const onViewableItemsChanged = useRef(
@@ -160,11 +173,8 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
   }, [captionExpanded, flashOverlay]);
 
   useEffect(() => {
-    if (shouldPlay) {
-      flashOverlay(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    flashOverlay(true);
+  }, [flashOverlay]);
 
   useEffect(() => {
     return () => {
@@ -212,15 +222,36 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
     [moments.length]
   );
 
+  const silenceReelPlayers = useCallback(() => {
+    silenceCachedVideoPlayers(videoUrlsRef.current);
+  }, []);
+
   const close = useCallback(() => {
+    setIsDismissing(true);
+    setShouldPlay(false);
+    silenceReelPlayers();
     router.back();
-  }, [router]);
+  }, [silenceReelPlayers, router]);
 
   const toggleMute = useCallback(() => {
     setIsMuted((current) => !current);
   }, []);
 
   const headerHeight = insets.top + 12 + 44;
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        silenceReelPlayers();
+      };
+    }, [silenceReelPlayers])
+  );
+
+  useEffect(() => silenceReelPlayers, [silenceReelPlayers]);
+
+  if (isDismissing) {
+    return <View style={[styles.reel, { backgroundColor: '#000000' }]} />;
+  }
 
   return (
     <View style={[styles.reel, { backgroundColor: '#000000' }]}>
@@ -257,11 +288,10 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
               transform: [{ scale: overlayScale }],
             },
           ]}>
-          <Ionicons
+          <ReelIcon
             color={palette.overlayText}
             name={shouldPlay ? 'pause' : 'play'}
             size={44}
-            style={shouldPlay ? undefined : styles.playIconNudge}
           />
         </Animated.View>
       ) : null}
@@ -294,7 +324,7 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
             />
           ) : (
             <View style={[styles.posterOnly, { backgroundColor: palette.overlay }]}>
-              <Ionicons color={palette.overlayText} name="image" size={20} />
+              <ReelIcon color={palette.overlayText} name="image" size={20} />
             </View>
           )}
         </View>
@@ -337,7 +367,10 @@ const MomentReelSlide = memo(function MomentReelSlide({
       ) : (
         <Image
           accessibilityIgnoresInvertColors
+          allowDownscaling
+          cachePolicy="memory-disk"
           contentFit="cover"
+          priority={isActive ? 'high' : 'normal'}
           source={{ uri: moment.thumbnailUrl }}
           style={styles.media}
           transition={0}
@@ -377,14 +410,30 @@ function ExpandableCaption({
   onToggle: () => void;
   palette: MomentPalette;
 }) {
+  const [isFocused, setIsFocused] = useState(false);
+  const webFocusStyle: WebFocusStyle | undefined =
+    isFocused && Platform.OS === 'web'
+      ? {
+          outlineColor: palette.overlayText,
+          outlineStyle: 'solid',
+          outlineWidth: 3,
+        }
+      : undefined;
+
   return (
     <View style={[styles.captionWrap, expanded && styles.captionWrapExpanded]}>
       <BottomFade />
       <Pressable
         accessibilityHint={expanded ? 'Chạm để thu gọn và phát video' : 'Chạm để xem thêm'}
         accessibilityRole="button"
+        onBlur={() => setIsFocused(false)}
+        onFocus={() => setIsFocused(true)}
         onPress={onToggle}
-        style={styles.captionInner}>
+        style={[
+          styles.captionInner,
+          isFocused && { borderColor: palette.overlayText },
+          webFocusStyle,
+        ]}>
         <Text
           selectable
           style={[styles.slideTitle, { color: palette.overlayText }]}
@@ -449,18 +498,20 @@ function VideoProgressBar({ player, top }: { player: VideoPlayer; top: number })
     Animated.timing(progress, {
       duration: 200,
       toValue: wrapped,
-      useNativeDriver: false,
+      useNativeDriver: true,
     }).start();
   }, [currentTime, player, progress]);
 
-  const widthInterp = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
-  });
-
   return (
     <View pointerEvents="none" style={[styles.progressTrack, { top }]}>
-      <Animated.View style={[styles.progressFill, { width: widthInterp }]} />
+      <Animated.View
+        style={[
+          styles.progressFill,
+          {
+            transform: [{ scaleX: progress }],
+          },
+        ]}
+      />
     </View>
   );
 }
@@ -480,29 +531,53 @@ function MomentVideo({
 }) {
   const player = useMemo(() => getCachedVideoPlayer(videoUrl), [videoUrl]);
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
+  const { status } = useEvent(player, 'statusChange', { status: player.status });
+
+  const playIfReady = useCallback(() => {
+    if (!isActive || !shouldPlay) return;
+    if (player.status !== 'readyToPlay') return;
+    player.play();
+  }, [isActive, player, shouldPlay]);
 
   useEffect(() => {
-    player.muted = isMuted;
+    if (isActive) player.muted = isMuted;
+  }, [isActive, isMuted, player]);
 
-    if (isActive && shouldPlay) {
-      player.play();
-    } else {
+  useEffect(() => {
+    if (!isActive || !shouldPlay) {
       player.pause();
+      return;
     }
-  }, [isActive, isMuted, player, shouldPlay]);
+
+    playIfReady();
+    const frameId = requestAnimationFrame(playIfReady);
+    const timeoutId = setTimeout(playIfReady, 120);
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      clearTimeout(timeoutId);
+    };
+  }, [isActive, playIfReady, player, shouldPlay, status]);
 
   return (
     <View style={styles.media}>
       <VideoView
+        allowsFullscreen={false}
+        allowsPictureInPicture={false}
+        startsPictureInPictureAutomatically={false}
         contentFit="cover"
         nativeControls={false}
+        onFirstFrameRender={playIfReady}
         player={player}
         style={styles.media}
       />
       {!isPlaying ? (
         <Image
           accessibilityIgnoresInvertColors
+          allowDownscaling
+          cachePolicy="memory-disk"
           contentFit="cover"
+          priority={isActive ? 'high' : 'normal'}
           source={{ uri: posterUrl }}
           style={styles.videoPoster}
           transition={0}
@@ -520,19 +595,58 @@ function IconButton({
   palette,
 }: {
   accessibilityLabel: string;
-  icon: React.ComponentProps<typeof Ionicons>['name'];
+  icon: ReelIconName;
   iconSize: number;
   onPress: () => void;
   palette: MomentPalette;
 }) {
+  const [isFocused, setIsFocused] = useState(false);
+  const webFocusStyle: WebFocusStyle | undefined =
+    isFocused && Platform.OS === 'web'
+      ? {
+          outlineColor: palette.overlayText,
+          outlineStyle: 'solid',
+          outlineWidth: 3,
+        }
+      : undefined;
+
   return (
     <Pressable
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
+      onBlur={() => setIsFocused(false)}
+      onFocus={() => setIsFocused(true)}
       onPress={onPress}
-      style={[styles.iconButton, { backgroundColor: palette.overlay }]}>
-      <Ionicons color={palette.overlayText} name={icon} size={iconSize} />
+      style={[
+        styles.iconButton,
+        {
+          backgroundColor: palette.overlay,
+          borderColor: isFocused ? palette.overlayText : 'rgba(255,255,255,0.28)',
+        },
+        webFocusStyle,
+      ]}>
+      <ReelIcon color={palette.overlayText} name={icon} size={iconSize} />
     </Pressable>
+  );
+}
+
+function ReelIcon({
+  color,
+  name,
+  size,
+}: {
+  color: string;
+  name: ReelIconName;
+  size: number;
+}) {
+  return (
+    <Ionicons
+      accessibilityElementsHidden
+      color={color}
+      importantForAccessibility="no-hide-descendants"
+      name={name}
+      size={size}
+    />
   );
 }
 
@@ -610,6 +724,9 @@ const styles = StyleSheet.create({
     paddingTop: 60,
   },
   captionInner: {
+    borderColor: 'transparent',
+    borderRadius: 14,
+    borderWidth: 2,
     gap: 6,
     paddingBottom: 24,
     paddingHorizontal: 18,
@@ -638,6 +755,8 @@ const styles = StyleSheet.create({
   },
   iconButton: {
     alignItems: 'center',
+    borderColor: 'rgba(255,255,255,0.28)',
+    borderWidth: 2,
     borderCurve: 'continuous',
     borderRadius: 999,
     height: 44,
@@ -663,9 +782,6 @@ const styles = StyleSheet.create({
     marginTop: -44,
     width: 88,
   },
-  playIconNudge: {
-    marginLeft: 4,
-  },
   progressTrack: {
     backgroundColor: 'rgba(255,255,255,0.22)',
     height: 3,
@@ -679,5 +795,7 @@ const styles = StyleSheet.create({
   progressFill: {
     backgroundColor: '#FFFFFF',
     height: '100%',
+    transformOrigin: 'left center',
+    width: '100%',
   },
 });

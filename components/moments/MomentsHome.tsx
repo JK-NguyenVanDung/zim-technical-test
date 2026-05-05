@@ -1,5 +1,5 @@
-import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -46,6 +46,8 @@ type RenderMomentProps = CardRenderInfo & {
   snapInterval: number;
 };
 
+const AnimatedMomentList = Animated.createAnimatedComponent(FlatList<ZimMoment>);
+
 const RenderMoment = memo(
   ({
     index,
@@ -90,7 +92,9 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
   const [previewedId, setPreviewedId] = useState(moments[0]?.id);
   const [pendingId, setPendingId] = useState<string | undefined>(undefined);
   const [tiltActive, setTiltActive] = useState(false);
+  const [isUserScrolling, setIsUserScrolling] = useState(false);
   const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoPlayTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const palette = useMemo(() => getMomentPalette(colorScheme), [colorScheme]);
 
   const cancelPending = useCallback(() => {
@@ -102,6 +106,7 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
   }, []);
 
   useEffect(() => () => cancelPending(), [cancelPending]);
+
   const previewedMoment = useMemo(
     () => moments.find((moment) => moment.id === previewedId),
     [moments, previewedId],
@@ -118,9 +123,6 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
 
   const isLandscape = width > height;
 
-  // ─── Responsive card sizing ────────────────────────────────────────────
-  // Reserve space for: safe areas + top padding + heading block + gap + bottom buffer.
-  // heading block ≈ 120px portrait / 80px landscape (title + description + gap).
   const headingReserve = isLandscape ? 100 : 130;
   const bottomBuffer = Math.max(insets.bottom + 32, height * 0.09);
   const carouselPaddingTop = 28;
@@ -129,13 +131,12 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
     height -
     insets.top -
     paddingBottom -
-    (isLandscape ? 18 : 34) - // content paddingTop
+    (isLandscape ? 18 : 34) -
     headingReserve -
-    18 - // content gap
+    18 -
     carouselPaddingTop -
     bottomBuffer;
 
-  // Cap width from both the horizontal 58% rule AND the vertical height budget.
   const maxWidthFromHeight = Math.max(140, availableCardH * (9 / 16));
   const itemWidth = Math.min(
     isLandscape ? 240 : 290,
@@ -147,6 +148,34 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
   const listHeight = carouselPaddingTop + cardHeight + bottomBuffer;
   const snapInterval = itemWidth + 22;
   const sidePadding = Math.max(18, (width - itemWidth) / 2);
+
+  useEffect(() => {
+    if (tiltActive || pendingId || isUserScrolling || reducedMotion) {
+      if (autoPlayTimerRef.current) clearInterval(autoPlayTimerRef.current);
+      return;
+    }
+
+    autoPlayTimerRef.current = setInterval(() => {
+      setPreviewedId((currentId) => {
+        const currentIndex = moments.findIndex((m) => m.id === currentId);
+        if (currentIndex === -1) return currentId;
+        
+        const nextIndex = (currentIndex + 1) % moments.length;
+        const nextMoment = moments[nextIndex];
+
+        listRef.current?.scrollToOffset({
+          animated: true,
+          offset: nextIndex * snapInterval,
+        });
+
+        return nextMoment.id;
+      });
+    }, 4000);
+
+    return () => {
+      if (autoPlayTimerRef.current) clearInterval(autoPlayTimerRef.current);
+    };
+  }, [tiltActive, pendingId, isUserScrolling, reducedMotion, moments, snapInterval]);
 
   const openMoment = useCallback(
     (id: string) => {
@@ -195,7 +224,7 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
         previewedId={previewedId}
         reducedMotion={reducedMotion}
         scrollX={scrollX}
-        setPreviewedId={setPreviewedId as any}
+        setPreviewedId={setPreviewedId}
         snapInterval={snapInterval}
       />
     ),
@@ -226,8 +255,12 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
     );
   }, [reducedMotion, scrollX]);
 
+  const handleScrollBegin = useCallback(() => setIsUserScrolling(true), []);
+  const handleScrollEnd = useCallback(() => setIsUserScrolling(false), []);
+
   const onMomentumScrollEnd = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      handleScrollEnd();
       const nextIndex = Math.round(
         event.nativeEvent.contentOffset.x / snapInterval,
       );
@@ -246,15 +279,21 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
 
   return (
     <View style={[styles.screen, { backgroundColor: palette.background }]}>
-      {/* Blue blob */}
       <LinearGradient
-        colors={["rgba(45, 60, 140, 0.5)", "rgba(45, 60, 140, 0.1)", "transparent"]}
+        colors={[
+          "rgba(45, 60, 140, 0.5)",
+          "rgba(45, 60, 140, 0.1)",
+          "transparent",
+        ]}
         locations={[0, 0.5, 1]}
         style={styles.blueGlow}
       />
-      {/* Red blob */}
       <LinearGradient
-        colors={["rgba(185, 28, 46, 0.5)", "rgba(185, 28, 46, 0.1)", "transparent"]}
+        colors={[
+          "rgba(185, 28, 46, 0.5)",
+          "rgba(185, 28, 46, 0.1)",
+          "transparent",
+        ]}
         locations={[0, 0.5, 1]}
         style={styles.redGlow}
       />
@@ -279,7 +318,7 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
           </Text>
         </View>
 
-        <Animated.FlatList
+        <AnimatedMomentList
           contentContainerStyle={[
             styles.carousel,
             {
@@ -288,14 +327,17 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
             },
           ]}
           data={moments}
-          ref={listRef as never}
+          ref={listRef}
           decelerationRate="fast"
           horizontal
-          initialNumToRender={6}
+          initialNumToRender={3}
           keyExtractor={keyExtractor}
-          maxToRenderPerBatch={4}
+          maxToRenderPerBatch={2}
+          onMomentumScrollBegin={handleScrollBegin}
           onMomentumScrollEnd={onMomentumScrollEnd}
           onScroll={onScroll}
+          onScrollBeginDrag={handleScrollBegin}
+          onScrollEndDrag={handleScrollEnd}
           removeClippedSubviews
           renderItem={renderMoment}
           scrollEnabled={!tiltActive}
@@ -304,7 +346,7 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
           snapToAlignment="start"
           snapToInterval={snapInterval}
           style={[styles.list, { height: listHeight }]}
-          windowSize={5}
+          windowSize={3}
         />
       </View>
     </View>
@@ -347,7 +389,7 @@ const styles = StyleSheet.create({
   carousel: {
     alignItems: "flex-start",
     gap: 22,
-    paddingTop: 28, // matches carouselPaddingTop constant above
+    paddingTop: 28,
   },
   blueGlow: {
     borderRadius: 9999,

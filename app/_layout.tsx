@@ -7,7 +7,6 @@ import { Stack } from "expo-router";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import "react-native-reanimated";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
 

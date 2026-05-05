@@ -1,5 +1,5 @@
-import { Image } from 'expo-image';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { Image } from "expo-image";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -8,14 +8,14 @@ import {
   Text,
   View,
   type GestureResponderEvent,
-} from 'react-native';
+} from "react-native";
 
 const TILT_MAX_DEG = 16;
 const PARALLAX_IMAGE_PX = 22;
 const PARALLAX_CAPTION_PX = 14;
 
-import type { MomentPalette } from '@/components/moments/MomentPalette';
-import type { ZimMoment } from '@/types/moment';
+import type { MomentPalette } from "@/components/moments/MomentPalette";
+import type { ZimMoment } from "@/types/moment";
 
 type MomentCardProps = {
   index: number;
@@ -57,8 +57,8 @@ function MomentCardComponent({
   const edgeGestureRef = useRef(false);
   const [pressed, setPressed] = useState(false);
 
-  // Fraction of card width treated as an edge zone — scroll wins here
-  const EDGE_FRACTION = 0.22;
+  // Fraction of card width treated as an edge zone, scroll wins here
+  const EDGE_FRACTION = 0.2;
 
   const tiltHandlers = useMemo(() => {
     if (reducedMotion || !isPreviewed) {
@@ -78,24 +78,40 @@ function MomentCardComponent({
     const release = () => {
       onTiltActiveChange?.(false);
       Animated.parallel([
-        Animated.spring(tiltX, { toValue: 0, useNativeDriver: true, friction: 6, tension: 90 }),
-        Animated.spring(tiltY, { toValue: 0, useNativeDriver: true, friction: 6, tension: 90 }),
+        Animated.spring(tiltX, {
+          toValue: 0,
+          useNativeDriver: true,
+          friction: 6,
+          tension: 90,
+        }),
+        Animated.spring(tiltY, {
+          toValue: 0,
+          useNativeDriver: true,
+          friction: 6,
+          tension: 90,
+        }),
       ]).start();
     };
     return {
       onTouchStart: (e: GestureResponderEvent) => {
         const { width } = cardSizeRef.current;
         const lx = e.nativeEvent.locationX;
-        const inEdgeZone = width > 0 && (lx < width * EDGE_FRACTION || lx > width * (1 - EDGE_FRACTION));
+        const inEdgeZone =
+          width > 0 &&
+          (lx < width * EDGE_FRACTION || lx > width * (1 - EDGE_FRACTION));
 
-        touchStartRef.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
+        touchStartRef.current = {
+          x: e.nativeEvent.pageX,
+          y: e.nativeEvent.pageY,
+        };
         draggedRef.current = false;
+        // Track edge origin but always activate tilt — a still hold on the
+        // edge should feel like a normal hold. Only a horizontal drag will
+        // later hand control back to the carousel.
         edgeGestureRef.current = inEdgeZone;
 
-        // Always lock carousel on touch start (edge or not) so a still hold
-        // never triggers accidental scrolling. Tilt is only applied outside edges.
         onTiltActiveChange?.(true);
-        if (!inEdgeZone) updateTilt(e);
+        updateTilt(e);
       },
       onTouchMove: (e: GestureResponderEvent) => {
         const start = touchStartRef.current;
@@ -104,15 +120,18 @@ function MomentCardComponent({
           const dy = e.nativeEvent.pageY - start.y;
           if (Math.hypot(dx, dy) > 8) {
             draggedRef.current = true;
-            // Predominantly horizontal drag → unlock carousel, surrender scroll priority
-            if (Math.abs(dx) > Math.abs(dy) * 1.2) {
-              release(); // resets tilt + calls onTiltActiveChange(false)
-              edgeGestureRef.current = true;
+            // Predominantly horizontal drag on ANY zone -> yield to carousel.
+            // Edge-zone gestures get a slightly lower threshold so swiping
+            // from the edge still feels natural.
+            const threshold = edgeGestureRef.current ? 1.0 : 1.2;
+            if (Math.abs(dx) > Math.abs(dy) * threshold) {
+              release(); // drop tilt, re-enable FlatList scroll
+              edgeGestureRef.current = true; // suppress further updateTilt
               return;
             }
           }
         }
-        if (edgeGestureRef.current) return;
+        if (edgeGestureRef.current && draggedRef.current) return;
         updateTilt(e);
       },
       onTouchEnd: release,
@@ -152,7 +171,7 @@ function MomentCardComponent({
         easing: Easing.linear,
         toValue: 1,
         useNativeDriver: true,
-      })
+      }),
     ).start();
     Animated.timing(ringFill, {
       duration: 2000,
@@ -174,21 +193,21 @@ function MomentCardComponent({
       opacity: scrollX.interpolate({
         inputRange,
         outputRange: [0.58, 1, 0.58],
-        extrapolate: 'clamp',
+        extrapolate: "clamp",
       }),
       transform: [
         {
           scale: scrollX.interpolate({
             inputRange,
             outputRange: [0.82, 1, 0.82],
-            extrapolate: 'clamp',
+            extrapolate: "clamp",
           }),
         },
         {
           translateY: scrollX.interpolate({
             inputRange,
             outputRange: [28, 0, 28],
-            extrapolate: 'clamp',
+            extrapolate: "clamp",
           }),
         },
       ],
@@ -238,11 +257,14 @@ function MomentCardComponent({
           },
           {
             translateY: Animated.add(
-              hoverProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -8] }),
+              hoverProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, -8],
+              }),
               tiltX.interpolate({
                 inputRange: [-1, 1],
                 outputRange: [PARALLAX_IMAGE_PX, -PARALLAX_IMAGE_PX],
-              })
+              }),
             ),
           },
           {
@@ -255,13 +277,21 @@ function MomentCardComponent({
       };
 
   const overlayStyle = {
-    opacity: reducedMotion ? 1 : hoverProgress.interpolate({ inputRange: [0, 1], outputRange: [0.76, 1] }),
+    opacity: reducedMotion
+      ? 1
+      : hoverProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.76, 1],
+        }),
   };
 
   const captionStyle = reducedMotion
     ? undefined
     : {
-        opacity: hoverProgress.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
+        opacity: hoverProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, 1],
+        }),
         transform: [
           {
             translateX: tiltY.interpolate({
@@ -271,11 +301,14 @@ function MomentCardComponent({
           },
           {
             translateY: Animated.add(
-              hoverProgress.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }),
+              hoverProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [10, 0],
+              }),
               tiltX.interpolate({
                 inputRange: [-1, 1],
                 outputRange: [-PARALLAX_CAPTION_PX, PARALLAX_CAPTION_PX],
-              })
+              }),
             ),
           },
         ],
@@ -283,7 +316,7 @@ function MomentCardComponent({
 
   const ringRotation = ringRotate.interpolate({
     inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
+    outputRange: ["0deg", "360deg"],
   });
   const ringScale = ringFill.interpolate({
     inputRange: [0, 1],
@@ -297,8 +330,8 @@ function MomentCardComponent({
           {...(tiltHandlers ?? {})}
           accessibilityHint={
             isPreviewed
-              ? 'Chạm lần nữa để mở khoảnh khắc toàn màn hình'
-              : 'Chạm để đưa thẻ vào giữa, giữ 2 giây để mở'
+              ? "Chạm lần nữa để mở khoảnh khắc toàn màn hình"
+              : "Chạm để đưa thẻ vào giữa, giữ 2 giây để mở"
           }
           accessibilityLabel={`Khoảnh khắc video ${moment.title}, ${moment.location}`}
           accessibilityRole="button"
@@ -324,9 +357,12 @@ function MomentCardComponent({
             styles.card,
             {
               backgroundColor: palette.surface,
-              borderColor: isPreviewed ? palette.border : 'rgba(255, 255, 255, 0.18)',
+              borderColor: isPreviewed
+                ? palette.border
+                : "rgba(255, 255, 255, 0.18)",
             },
-          ]}>
+          ]}
+        >
           <View style={styles.mediaFrame}>
             <Animated.View style={[styles.imageLayer, imageStyle]}>
               <Image
@@ -340,7 +376,11 @@ function MomentCardComponent({
             </Animated.View>
             <Animated.View
               pointerEvents="none"
-              style={[styles.overlay, overlayStyle, { backgroundColor: palette.overlay }]}
+              style={[
+                styles.overlay,
+                overlayStyle,
+                { backgroundColor: palette.overlay },
+              ]}
             />
             <View style={styles.playButton}>
               <Text style={styles.playIcon}>▶</Text>
@@ -352,14 +392,20 @@ function MomentCardComponent({
                     styles.ringSpinner,
                     {
                       borderTopColor: palette.tint,
-                      transform: [{ rotate: ringRotation }, { scale: ringScale }],
+                      transform: [
+                        { rotate: ringRotation },
+                        { scale: ringScale },
+                      ],
                     },
                   ]}
                 />
               </View>
             ) : null}
             {isPreviewed ? (
-              <Animated.View pointerEvents="none" style={[styles.captionLayer, captionStyle]}>
+              <Animated.View
+                pointerEvents="none"
+                style={[styles.captionLayer, captionStyle]}
+              >
                 <Text numberOfLines={2} selectable style={styles.cardTitle}>
                   {moment.location}
                 </Text>
@@ -379,62 +425,62 @@ export const MomentCard = memo(MomentCardComponent);
 
 const styles = StyleSheet.create({
   outer: {
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   card: {
     aspectRatio: 9 / 16,
-    borderCurve: 'continuous',
+    borderCurve: "continuous",
     borderRadius: 14,
     borderWidth: 2,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   mediaFrame: {
     flex: 1,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   imageLayer: {
     ...StyleSheet.absoluteFillObject,
   },
   image: {
-    height: '100%',
-    width: '100%',
+    height: "100%",
+    width: "100%",
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
   },
   playButton: {
-    alignItems: 'center',
-    borderColor: 'rgba(255, 255, 255, 0.68)',
+    alignItems: "center",
+    borderColor: "rgba(255, 255, 255, 0.68)",
     borderRadius: 999,
     borderWidth: 4,
     height: 74,
-    justifyContent: 'center',
-    left: '50%',
+    justifyContent: "center",
+    left: "50%",
     marginLeft: -37,
     marginTop: -37,
-    position: 'absolute',
-    top: '50%',
+    position: "absolute",
+    top: "50%",
     width: 74,
   },
   playIcon: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 36,
     lineHeight: 42,
     marginLeft: 5,
   },
   ringWrap: {
-    alignItems: 'center',
+    alignItems: "center",
     height: 96,
-    justifyContent: 'center',
-    left: '50%',
+    justifyContent: "center",
+    left: "50%",
     marginLeft: -48,
     marginTop: -48,
-    position: 'absolute',
-    top: '50%',
+    position: "absolute",
+    top: "50%",
     width: 96,
   },
   ringSpinner: {
-    borderColor: 'rgba(255,255,255,0.22)',
+    borderColor: "rgba(255,255,255,0.22)",
     borderRadius: 999,
     borderWidth: 4,
     height: 96,
@@ -444,19 +490,19 @@ const styles = StyleSheet.create({
     bottom: 14,
     gap: 5,
     left: 12,
-    position: 'absolute',
+    position: "absolute",
     right: 12,
   },
   cardTitle: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: "900",
     lineHeight: 17,
   },
   cardCaption: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: "700",
     lineHeight: 15,
   },
 });

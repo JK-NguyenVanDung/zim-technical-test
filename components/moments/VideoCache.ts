@@ -1,6 +1,6 @@
 import { createVideoPlayer, type VideoPlayer } from 'expo-video';
 
-const MAX_PLAYERS = 4;
+const MAX_PLAYERS = 16;
 const cache = new Map<string, VideoPlayer>();
 
 export function getCachedVideoPlayer(uri: string): VideoPlayer {

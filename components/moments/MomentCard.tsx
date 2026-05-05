@@ -1,6 +1,18 @@
 import { Image } from 'expo-image';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  Easing,
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+
+const TILT_MAX_DEG = 9;
+const PARALLAX_IMAGE_PX = 14;
+const PARALLAX_CAPTION_PX = 10;
 
 import type { MomentPalette } from '@/components/moments/MomentPalette';
 import type { ZimMoment } from '@/types/moment';
@@ -35,7 +47,43 @@ function MomentCardComponent({
   const hoverProgress = useRef(new Animated.Value(0)).current;
   const ringRotate = useRef(new Animated.Value(0)).current;
   const ringFill = useRef(new Animated.Value(0)).current;
+  const tiltX = useRef(new Animated.Value(0)).current;
+  const tiltY = useRef(new Animated.Value(0)).current;
+  const cardSizeRef = useRef({ width: 0, height: 0 });
   const [pressed, setPressed] = useState(false);
+
+  const panResponder = useMemo(() => {
+    if (reducedMotion) {
+      return null;
+    }
+    const updateTilt = (locationX: number, locationY: number) => {
+      const { width, height } = cardSizeRef.current;
+      if (!width || !height) {
+        return;
+      }
+      const nx = Math.max(-1, Math.min(1, (locationX / width) * 2 - 1));
+      const ny = Math.max(-1, Math.min(1, (locationY / height) * 2 - 1));
+      tiltX.setValue(-ny);
+      tiltY.setValue(nx);
+    };
+    const release = () => {
+      Animated.parallel([
+        Animated.spring(tiltX, { toValue: 0, useNativeDriver: true, friction: 6, tension: 90 }),
+        Animated.spring(tiltY, { toValue: 0, useNativeDriver: true, friction: 6, tension: 90 }),
+      ]).start();
+    };
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gesture) =>
+        Math.abs(gesture.dx) > 2 || Math.abs(gesture.dy) > 2,
+      onPanResponderTerminationRequest: () => true,
+      onPanResponderMove: (evt) => {
+        updateTilt(evt.nativeEvent.locationX, evt.nativeEvent.locationY);
+      },
+      onPanResponderRelease: release,
+      onPanResponderTerminate: release,
+    });
+  }, [reducedMotion, tiltX, tiltY]);
 
   useEffect(() => {
     Animated.timing(hoverProgress, {

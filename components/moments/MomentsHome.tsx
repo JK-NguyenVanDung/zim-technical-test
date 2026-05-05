@@ -35,6 +35,7 @@ type CardRenderInfo = {
 type RenderMomentProps = CardRenderInfo & {
   itemWidth: number;
   openMoment: (id: string) => void;
+  onTiltActiveChange: (active: boolean) => void;
   palette: ReturnType<typeof getMomentPalette>;
   pendingId: string | undefined;
   previewedId: string | undefined;
@@ -50,6 +51,7 @@ const RenderMoment = memo(
     item,
     itemWidth,
     openMoment,
+    onTiltActiveChange,
     palette,
     pendingId,
     previewedId,
@@ -66,6 +68,7 @@ const RenderMoment = memo(
       moment={item}
       onPress={openMoment}
       onPreview={setPreviewedId}
+      onTiltActiveChange={onTiltActiveChange}
       palette={palette}
       reducedMotion={reducedMotion}
       scrollX={scrollX}
@@ -85,6 +88,7 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
   const listRef = useRef<FlatList<ZimMoment>>(null);
   const [previewedId, setPreviewedId] = useState(moments[0]?.id);
   const [pendingId, setPendingId] = useState<string | undefined>(undefined);
+  const [tiltActive, setTiltActive] = useState(false);
   const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const palette = useMemo(() => getMomentPalette(colorScheme), [colorScheme]);
 
@@ -160,6 +164,7 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
         item={item}
         itemWidth={itemWidth}
         openMoment={openMoment}
+        onTiltActiveChange={setTiltActive}
         palette={palette}
         pendingId={pendingId}
         previewedId={previewedId}
@@ -257,6 +262,7 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
           onScroll={onScroll}
           removeClippedSubviews
           renderItem={renderMoment}
+          scrollEnabled={!tiltActive}
           scrollEventThrottle={16}
           showsHorizontalScrollIndicator={false}
           snapToAlignment="start"
@@ -301,7 +307,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   carousel: {
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 22,
   },
   blueGlow: {

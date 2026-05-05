@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEvent } from 'expo';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { VideoView, type VideoPlayer } from 'expo-video';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -31,10 +32,12 @@ type MomentReelProps = {
 };
 
 type ReelSlideProps = {
+  captionExpanded: boolean;
   height: number;
   isActive: boolean;
   isMuted: boolean;
   moment: ZimMoment;
+  onToggleCaption: () => void;
   onTogglePlayback: () => void;
   palette: MomentPalette;
   shouldPlay: boolean;
@@ -52,6 +55,7 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const [isMuted, setIsMuted] = useState(true);
   const [shouldPlay, setShouldPlay] = useState(true);
+  const [captionExpanded, setCaptionExpanded] = useState(false);
   const overlayOpacity = useRef(new Animated.Value(1)).current;
   const overlayScale = useRef(new Animated.Value(1)).current;
   const fadeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -70,9 +74,19 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
 
       if (typeof nextIndex === 'number') {
         setActiveIndex(nextIndex);
+        setCaptionExpanded(false);
+        setShouldPlay(true);
       }
     }
   ).current;
+
+  const toggleCaptionExpanded = useCallback(() => {
+    setCaptionExpanded((current) => {
+      const next = !current;
+      setShouldPlay(!next);
+      return next;
+    });
+  }, []);
 
   const getItemLayout = useCallback(
     (_: ArrayLike<ZimMoment> | null | undefined, index: number) => ({
@@ -124,12 +138,18 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
   );
 
   const togglePlayback = useCallback(() => {
+    if (captionExpanded) {
+      setCaptionExpanded(false);
+      setShouldPlay(true);
+      flashOverlay(true);
+      return;
+    }
     setShouldPlay((current) => {
       const next = !current;
       flashOverlay(next);
       return next;
     });
-  }, [flashOverlay]);
+  }, [captionExpanded, flashOverlay]);
 
   useEffect(() => {
     if (shouldPlay) {
@@ -145,18 +165,32 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
   }, []);
 
   const renderSlide = useCallback(
-    ({ item, index }: ListRenderItemInfo<ZimMoment>) => (
-      <MomentReelSlide
-        height={height}
-        isActive={index === activeIndex}
-        isMuted={isMuted}
-        moment={item}
-        onTogglePlayback={togglePlayback}
-        palette={palette}
-        shouldPlay={shouldPlay}
-      />
-    ),
-    [activeIndex, height, isMuted, palette, shouldPlay, togglePlayback]
+    ({ item, index }: ListRenderItemInfo<ZimMoment>) => {
+      const active = index === activeIndex;
+      return (
+        <MomentReelSlide
+          captionExpanded={active && captionExpanded}
+          height={height}
+          isActive={active}
+          isMuted={isMuted}
+          moment={item}
+          onTogglePlayback={togglePlayback}
+          onToggleCaption={toggleCaptionExpanded}
+          palette={palette}
+          shouldPlay={shouldPlay}
+        />
+      );
+    },
+    [
+      activeIndex,
+      captionExpanded,
+      height,
+      isMuted,
+      palette,
+      shouldPlay,
+      toggleCaptionExpanded,
+      togglePlayback,
+    ]
   );
 
   const onScrollToIndexFailed = useCallback(
@@ -241,9 +275,6 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
           onPress={close}
           palette={palette}
         />
-        <View style={styles.brandMark} pointerEvents="none">
-          <Ionicons color="#FFFFFF" name="book" size={22} />
-        </View>
         <View style={styles.topActions}>
           {hasVideo ? (
             <IconButton
@@ -273,16 +304,16 @@ export function MomentReel({ initialIndex, moments }: MomentReelProps) {
 }
 
 const MomentReelSlide = memo(function MomentReelSlide({
+  captionExpanded,
   height,
   isActive,
   isMuted,
   moment,
+  onToggleCaption,
   onTogglePlayback,
   palette,
   shouldPlay,
 }: ReelSlideProps) {
-  const hasVideo = Boolean(moment.videoUrl);
-
   return (
     <View style={[styles.slide, { height }]}>
       {moment.videoUrl ? (
@@ -307,12 +338,16 @@ const MomentReelSlide = memo(function MomentReelSlide({
 
       <View pointerEvents="none" style={styles.scrim} />
 
+      {captionExpanded ? (
+        <View pointerEvents="none" style={styles.expandedDim} />
+      ) : null}
+
       <ExpandableCaption
         caption={moment.caption}
-        kicker={hasVideo ? 'Video khoảnh khắc' : 'Khoảnh khắc dạng ảnh'}
+        expanded={captionExpanded}
         location={moment.location}
+        onToggle={onToggleCaption}
         palette={palette}
-        title={moment.title}
       />
     </View>
   );
@@ -320,100 +355,61 @@ const MomentReelSlide = memo(function MomentReelSlide({
 
 function ExpandableCaption({
   caption,
-  kicker,
+  expanded,
   location,
+  onToggle,
   palette,
-  title,
 }: {
   caption: string;
-  kicker: string;
+  expanded: boolean;
   location: string;
+  onToggle: () => void;
   palette: MomentPalette;
-  title: string;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const fullText = `${location}\n${caption}`;
-
-  if (expanded) {
-    return (
-      <View style={styles.captionExpandedWrap}>
-        <ShadowStack />
-        <Pressable
-          accessibilityHint="Chạm để thu gọn"
-          accessibilityRole="button"
-          onPress={() => setExpanded(false)}
-          style={styles.captionExpandedInner}>
-          <Text selectable style={[styles.slideKicker, { color: palette.tint }]}>
-            {kicker}
-          </Text>
-          <Text selectable style={[styles.slideTitle, { color: palette.overlayText }]}>
-            {title}
-          </Text>
+  return (
+    <View style={[styles.captionWrap, expanded && styles.captionWrapExpanded]}>
+      <BottomFade />
+      <Pressable
+        accessibilityHint={expanded ? 'Chạm để thu gọn và phát video' : 'Chạm để xem thêm'}
+        accessibilityRole="button"
+        onPress={onToggle}
+        style={styles.captionInner}>
+        <Text
+          selectable
+          style={[styles.slideLocation, { color: palette.overlayText }]}
+          numberOfLines={1}>
+          {location}
+        </Text>
+        {expanded ? (
           <ScrollView
             nestedScrollEnabled
-            showsVerticalScrollIndicator
+            showsVerticalScrollIndicator={false}
             style={styles.captionScroll}>
-            <Text selectable style={[styles.slideLocation, { color: palette.overlayText }]}>
-              {location}
-            </Text>
             <Text selectable style={[styles.slideCaption, { color: palette.overlayText }]}>
               {caption}
             </Text>
-            <Text style={styles.captionHint}>Chạm để thu gọn</Text>
           </ScrollView>
-        </Pressable>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.captionCollapsedWrap}>
-      <ShadowStack />
-      <Pressable
-        accessibilityHint="Chạm để mở rộng mô tả"
-        accessibilityRole="button"
-        onPress={() => setExpanded(true)}
-        style={styles.captionCollapsedInner}>
-        <Text selectable style={[styles.slideKicker, { color: palette.tint }]}>
-          {kicker}
-        </Text>
-        <Text selectable style={[styles.slideTitle, { color: palette.overlayText }]} numberOfLines={2}>
-          {title}
-        </Text>
-        <Text
-          numberOfLines={2}
-          selectable
-          style={[styles.slideCaption, { color: palette.overlayText }]}>
-          {fullText}
-        </Text>
-        <Text style={styles.captionHint}>Chạm để xem thêm</Text>
+        ) : (
+          <Text
+            numberOfLines={2}
+            selectable
+            style={[styles.slideCaption, { color: palette.overlayText }]}>
+            {caption}
+          </Text>
+        )}
       </Pressable>
     </View>
   );
 }
 
-const SHADOW_LAYERS = 8;
-
-function ShadowStack() {
+function BottomFade() {
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {Array.from({ length: SHADOW_LAYERS }).map((_, i) => {
-        const t = i / (SHADOW_LAYERS - 1);
-        return (
-          <View
-            key={i}
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: `${(t + 0.15) * 100}%`,
-              backgroundColor: `rgba(0,0,0,${0.08 + t * 0.12})`,
-            }}
-          />
-        );
-      })}
-    </View>
+    <LinearGradient
+      colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.92)']}
+      locations={[0, 0.55, 1]}
+      pointerEvents="none"
+      style={StyleSheet.absoluteFill}
+    />
   );
 }
 
@@ -555,6 +551,10 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.18)',
   },
+  expandedDim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.62)',
+  },
   slideKicker: {
     fontSize: 13,
     fontWeight: '900',
@@ -580,40 +580,25 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     opacity: 0.94,
   },
-  captionCollapsedWrap: {
+  captionWrap: {
     bottom: 0,
     left: 0,
+    paddingTop: 36,
+    position: 'absolute',
+    right: 0,
+  },
+  captionWrapExpanded: {
+    maxHeight: '55%',
     paddingTop: 60,
-    position: 'absolute',
-    right: 0,
   },
-  captionCollapsedInner: {
+  captionInner: {
     gap: 6,
-    paddingBottom: 88,
-    paddingHorizontal: 20,
-  },
-  captionExpandedWrap: {
-    bottom: 0,
-    left: 0,
-    maxHeight: '70%',
-    paddingTop: 80,
-    position: 'absolute',
-    right: 0,
-  },
-  captionExpandedInner: {
-    gap: 8,
-    paddingBottom: 88,
-    paddingHorizontal: 20,
+    paddingBottom: 24,
+    paddingHorizontal: 18,
+    paddingTop: 14,
   },
   captionScroll: {
-    maxHeight: 240,
-  },
-  captionHint: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 11,
-    fontWeight: '700',
-    marginTop: 8,
-    textTransform: 'uppercase',
+    maxHeight: 220,
   },
   topBar: {
     alignItems: 'center',
@@ -632,14 +617,6 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     gap: 8,
     justifyContent: 'flex-end',
-  },
-  brandMark: {
-    alignItems: 'center',
-    backgroundColor: '#B91C2E',
-    borderRadius: 999,
-    height: 44,
-    justifyContent: 'center',
-    width: 44,
   },
   iconButton: {
     alignItems: 'center',

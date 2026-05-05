@@ -558,7 +558,7 @@ function MomentVideo({
     if (isActive && !wasActiveRef.current) {
       try {
         player.currentTime = 0;
-      } catch (e) {
+      } catch {
         // Ignore seek errors on unready players
       }
     }

@@ -302,7 +302,7 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
         }
       }
     },
-    [cancelPending, moments, pendingId, snapInterval],
+    [cancelPending, handleScrollEnd, moments, pendingId, snapInterval],
   );
 
   return (

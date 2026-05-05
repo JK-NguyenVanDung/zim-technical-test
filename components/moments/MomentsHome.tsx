@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   FlatList,
+  Platform,
   StyleSheet,
   Text,
   useColorScheme,
@@ -123,15 +124,33 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
 
   const isLandscape = width > height;
 
-  const headingReserve = isLandscape ? 100 : 130;
-  const bottomBuffer = Math.max(insets.bottom + 32, height * 0.09);
-  const carouselPaddingTop = 28;
-  const paddingBottom = Math.max(insets.bottom, 18);
+  const headingReserve = Platform.select({
+    android: isLandscape ? 74 : 130,
+    ios: isLandscape ? 84 : 130,
+    default: isLandscape ? 80 : 130,
+  });
+
+  const bottomBuffer = Platform.select({
+    android: isLandscape 
+      ? Math.max(insets.bottom + 28, height * 0.10) 
+      : Math.max(insets.bottom + 36, height * 0.09),
+    ios: isLandscape 
+      ? Math.max(insets.bottom + 20, height * 0.08) 
+      : Math.max(insets.bottom + 32, height * 0.09),
+    default: isLandscape ? 28 : 32,
+  });
+
+  const carouselPaddingTop = isLandscape ? 12 : 28;
+  const paddingBottom = Platform.select({
+    android: isLandscape ? Math.max(insets.bottom, 42) : Math.max(insets.bottom, 20),
+    ios: isLandscape ? Math.max(insets.bottom, 34) : Math.max(insets.bottom, 18),
+    default: 18,
+  });
   const availableCardH =
     height -
     insets.top -
     paddingBottom -
-    (isLandscape ? 18 : 34) -
+    Platform.select({ android: isLandscape ? 10 : 34, ios: isLandscape ? 14 : 34, default: 34 }) -
     headingReserve -
     18 -
     carouselPaddingTop -
@@ -139,7 +158,7 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
 
   const maxWidthFromHeight = Math.max(140, availableCardH * (9 / 16));
   const itemWidth = Math.min(
-    isLandscape ? 240 : 290,
+    Platform.select({ android: isLandscape ? 210 : 290, ios: isLandscape ? 230 : 290, default: 240 }),
     Math.max(160, width * 0.58),
     maxWidthFromHeight,
   );
@@ -240,6 +259,15 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
     ],
   );
 
+  const getItemLayout = useCallback(
+    (_: any, index: number) => ({
+      length: snapInterval,
+      offset: snapInterval * index,
+      index,
+    }),
+    [snapInterval],
+  );
+
   const keyExtractor = useCallback((moment: ZimMoment) => moment.id, []);
 
   const onScroll = useMemo(() => {
@@ -330,15 +358,16 @@ export function MomentsHome({ moments, section }: MomentsHomeProps) {
           ref={listRef}
           decelerationRate="fast"
           horizontal
+          getItemLayout={getItemLayout}
           initialNumToRender={3}
           keyExtractor={keyExtractor}
-          maxToRenderPerBatch={2}
+          maxToRenderPerBatch={3}
           onMomentumScrollBegin={handleScrollBegin}
           onMomentumScrollEnd={onMomentumScrollEnd}
           onScroll={onScroll}
           onScrollBeginDrag={handleScrollBegin}
           onScrollEndDrag={handleScrollEnd}
-          removeClippedSubviews
+          removeClippedSubviews={Platform.OS !== "ios"}
           renderItem={renderMoment}
           scrollEnabled={!tiltActive}
           scrollEventThrottle={16}
